@@ -1,103 +1,307 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { Header } from "@/components/header";
+import { CryptoCard } from "@/components/crypto-card";
+import { PaymentModal } from "@/components/payment-modal";
+import { mockCryptoCards, createNewCard } from "@/lib/mock-data";
+import { verifyWallet, checkPayment } from "@/lib/api";
+import { isSubscriptionValid } from "@/lib/utils";
+import { usePhantomWallet } from "@/lib/hooks/usePhantomWallet";
+import type { CryptoCard as CryptoCardType, JWTPayload } from "@/lib/types";
+import nacl from "tweetnacl";
+import bs58 from "bs58";
+
+// В начале файла добавим константы для ключей localStorage
+const STORAGE_KEYS = {
+  WALLET: "whales_trace_wallet",
+  SUBSCRIPTION: "whales_trace_subscription",
+  JWT_PAYLOAD: "whales_trace_jwt",
+} as const;
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const { wallet, isConnecting, connect, disconnect, isMobileDevice } =
+    usePhantomWallet();
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  // Инициализируем состояния из localStorage
+  const [jwtPayload, setJwtPayload] = useState<JWTPayload | null>(() => {
+    if (typeof window === "undefined") return null;
+    const saved = localStorage.getItem(STORAGE_KEYS.JWT_PAYLOAD);
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const [cryptoCards, setCryptoCards] = useState<CryptoCardType[]>([]);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [hasSubscription, setHasSubscription] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(STORAGE_KEYS.SUBSCRIPTION) === "true";
+  });
+
+  const [redirectPending, setRedirectPending] = useState<boolean>(false);
+
+  const MAX_CARDS = 16;
+
+  const addNewCard = (newCardData: CryptoCardType) => {
+    if (!hasSubscription) return;
+
+    setCryptoCards((prevCards) => {
+      const updatedCards = [newCardData, ...prevCards];
+      if (updatedCards.length > MAX_CARDS) {
+        return updatedCards.slice(0, MAX_CARDS);
+      }
+      return updatedCards;
+    });
+  };
+
+  useEffect(() => {
+    if (!localStorage.getItem("dapp_keypair")) {
+      const keyPair = nacl.box.keyPair();
+      localStorage.setItem(
+        "dapp_keypair",
+        JSON.stringify({
+          publicKey: bs58.encode(keyPair.publicKey),
+          secretKey: bs58.encode(keyPair.secretKey),
+        })
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    if (hasSubscription) {
+      const interval = setInterval(() => {
+        const newCard = createNewCard();
+        addNewCard(newCard);
+      }, 30000);
+
+      return () => clearInterval(interval);
+    }
+  }, [hasSubscription]);
+
+  // Добавляем функцию создания deep link
+  const createMobileDeepLink = () => {
+    const params = new URLSearchParams({
+      dapp_encryption_public_key: bs58.encode(nacl.box.keyPair().publicKey),
+      redirect_link: window.location.href,
+      app_url: window.location.origin,
+      cluster: "mainnet-beta",
+    });
+    return `https://phantom.app/ul/v1/connect?${params.toString()}`;
+  };
+
+  // Обновляем функцию connectWallet
+  const connectWallet = async () => {
+    try {
+      if (isConnecting) return;
+
+      if (isMobileDevice) {
+        setRedirectPending(true);
+        const deepLink = createMobileDeepLink();
+        window.location.href = deepLink;
+        return;
+      }
+
+      // Desktop flow
+      const result = await connect();
+      if (!result) return;
+
+      const { publicKey, signature } = result;
+      handleWalletConnection(publicKey, signature);
+    } catch (error) {
+      console.error("Ошибка подключения:", error);
+      alert("Ошибка подключения кошелька. Попробуйте снова.");
+      setRedirectPending(false);
+    }
+  };
+
+  // Добавляем обработчик подключения кошелька
+  const handleWalletConnection = async (
+    publicKey: string,
+    signature: string
+  ) => {
+    const verifyResponse = await verifyWallet(signature, publicKey);
+
+    // Сохраняем данные в localStorage
+    localStorage.setItem(STORAGE_KEYS.WALLET, publicKey);
+    localStorage.setItem(
+      STORAGE_KEYS.JWT_PAYLOAD,
+      JSON.stringify(verifyResponse.payload)
+    );
+
+    setJwtPayload(verifyResponse.payload);
+
+    const hasValidSubscription = isSubscriptionValid(verifyResponse.payload);
+    if (hasValidSubscription) {
+      localStorage.setItem(STORAGE_KEYS.SUBSCRIPTION, "true");
+      setHasSubscription(true);
+      setCryptoCards(mockCryptoCards);
+      setIsLoading(false);
+    } else {
+      setIsPaymentModalOpen(true);
+    }
+  };
+
+  // Обновляем функцию checkRedirectStatus
+  const checkRedirectStatus = useCallback(async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const phantomPublicKeyStr = urlParams.get("phantom_encryption_public_key");
+    const dataStr = urlParams.get("data");
+    const nonceStr = urlParams.get("nonce");
+
+    if (phantomPublicKeyStr && dataStr && nonceStr) {
+      try {
+        // Получаем сохраненный keypair
+        const savedKeyPair = JSON.parse(
+          localStorage.getItem("dapp_keypair") || ""
+        );
+        if (!savedKeyPair) throw new Error("No keypair found");
+
+        // Расшифровываем данные
+        const sharedSecret = nacl.box.before(
+          bs58.decode(phantomPublicKeyStr),
+          bs58.decode(savedKeyPair.secretKey)
+        );
+
+        const decryptedData = nacl.box.open.after(
+          bs58.decode(dataStr),
+          bs58.decode(nonceStr),
+          sharedSecret
+        );
+
+        if (!decryptedData) throw new Error("Failed to decrypt data");
+
+        const decoded = JSON.parse(new TextDecoder().decode(decryptedData));
+        const publicKey = decoded.public_key;
+
+        // Сохраняем в localStorage и обновляем состояние
+        localStorage.setItem(STORAGE_KEYS.WALLET, publicKey);
+
+        // Вызываем подключение
+        const result = await connect();
+        if (!result) throw new Error("Failed to connect");
+
+        await handleWalletConnection(publicKey, "mobile_signature");
+
+        // Очищаем URL
+        window.history.replaceState({}, "", window.location.pathname);
+      } catch (error) {
+        console.error("Error processing return data:", error);
+        alert("Failed to connect wallet. Please try again.");
+      } finally {
+        setRedirectPending(false);
+      }
+    }
+  }, [connect, handleWalletConnection]);
+
+  // Обновляем useEffect для проверки возврата
+  useEffect(() => {
+    if (redirectPending) {
+      checkRedirectStatus();
+    }
+  }, [checkRedirectStatus, redirectPending]);
+
+  // Модифицируем disconnectWallet
+  const disconnectWallet = () => {
+    disconnect();
+    // Очищаем localStorage
+    localStorage.removeItem(STORAGE_KEYS.WALLET);
+    localStorage.removeItem(STORAGE_KEYS.JWT_PAYLOAD);
+    localStorage.removeItem(STORAGE_KEYS.SUBSCRIPTION);
+
+    setJwtPayload(null);
+    setHasSubscription(false);
+    setIsLoading(true);
+    setCryptoCards([]);
+  };
+
+  // Модифицируем handleCheckPayment
+  const handleCheckPayment = async () => {
+    try {
+      await checkPayment();
+      setIsPaymentModalOpen(false);
+
+      // Сохраняем статус подписки
+      localStorage.setItem(STORAGE_KEYS.SUBSCRIPTION, "true");
+      setHasSubscription(true);
+
+      setCryptoCards(mockCryptoCards);
+      setIsLoading(false);
+
+      alert("Test mode: Displaying card data regardless of payment status.");
+    } catch (error) {
+      console.error("Error checking payment:", error);
+      alert("Failed to check payment status. Please try again.");
+    }
+  };
+
+  // Добавляем эффект для восстановления состояния при загрузке
+  useEffect(() => {
+    const savedWallet = localStorage.getItem(STORAGE_KEYS.WALLET);
+    const savedSubscription = localStorage.getItem(STORAGE_KEYS.SUBSCRIPTION);
+    const savedJwtPayload = localStorage.getItem(STORAGE_KEYS.JWT_PAYLOAD);
+
+    if (savedWallet && savedSubscription === "true" && savedJwtPayload) {
+      try {
+        const payload = JSON.parse(savedJwtPayload);
+        setJwtPayload(payload);
+        setHasSubscription(true);
+        setCryptoCards(mockCryptoCards);
+        setIsLoading(false);
+      } catch (error) {
+        console.error("Error restoring session:", error);
+        // При ошибке чистим localStorage
+        localStorage.removeItem(STORAGE_KEYS.WALLET);
+        localStorage.removeItem(STORAGE_KEYS.JWT_PAYLOAD);
+        localStorage.removeItem(STORAGE_KEYS.SUBSCRIPTION);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      setRedirectPending(false);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (hasSubscription) {
+      setCryptoCards(mockCryptoCards);
+      setIsLoading(false);
+    }
+  }, [hasSubscription]);
+
+  const skeletonCards = Array(MAX_CARDS)
+    .fill(0)
+    .map((_, index) => <CryptoCard key={`skeleton-${index}`} loading={true} />);
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Header
+        wallet={wallet}
+        isConnecting={isConnecting}
+        onConnectWallet={connectWallet}
+        onDisconnectWallet={disconnectWallet}
+      />
+
+      <main className="container py-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {isLoading || !hasSubscription
+            ? skeletonCards
+            : cryptoCards.map((card) => (
+                <CryptoCard key={card.id} data={card} />
+              ))}
         </div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+      {jwtPayload && (
+        <PaymentModal
+          open={isPaymentModalOpen}
+          onOpenChange={setIsPaymentModalOpen}
+          walletAddress={jwtPayload.topupWallet}
+          onCheckPayment={handleCheckPayment}
+        />
+      )}
     </div>
   );
 }
