@@ -5,10 +5,10 @@ import { Header } from "@/components/header";
 import { CryptoCard } from "@/components/crypto-card";
 import { PaymentModal } from "@/components/payment-modal";
 import { mockCryptoCards, createNewCard } from "@/lib/mock-data";
-import { verifyWallet, checkPayment } from "@/lib/api";
-import { isSubscriptionValid } from "@/lib/utils";
+import { verifyWallet, checkPayment } from "@/lib/api/api";
+import { isSubscriptionValid, formatWalletAddress, decodeJWT } from "@/lib/utils";
 import { usePhantomWallet } from "@/lib/hooks/usePhantomWallet";
-import type { CryptoCard as CryptoCardType, JWTPayload } from "@/lib/types";
+import type { CryptoCard as CryptoCardType, JWTPayload } from "@/lib/api/types";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
 
@@ -151,16 +151,15 @@ export default function Home() {
 
     if (phantomPublicKeyStr && dataStr && nonceStr) {
       try {
-        // Получаем сохраненный keypair
-        const savedKeyPair = JSON.parse(
-          localStorage.getItem("dapp_keypair") || ""
-        );
-        if (!savedKeyPair) throw new Error("No keypair found");
+        // Получаем сохраненный публичный ключ
+        const savedPublicKey = localStorage.getItem("dapp_public_key");
+        if (!savedPublicKey) throw new Error("No public key found");
 
-        // Расшифровываем данные
+        // Создаем временный keypair для расшифровки
+        const tempKeypair = nacl.box.keyPair();
         const sharedSecret = nacl.box.before(
           bs58.decode(phantomPublicKeyStr),
-          bs58.decode(savedKeyPair.secretKey)
+          tempKeypair.secretKey
         );
 
         const decryptedData = nacl.box.open.after(
@@ -174,14 +173,19 @@ export default function Home() {
         const decoded = JSON.parse(new TextDecoder().decode(decryptedData));
         const publicKey = decoded.public_key;
 
+        // Формируем сообщение для подписи
+        const message = new TextEncoder().encode(`Signing in to Trace with wallet: ${publicKey} TS: ${Date.now()}`);
+        
+
+        // Создаем подпись в формате base58
+        const signature = bs58.encode(message);
+
         // Сохраняем в localStorage и обновляем состояние
         localStorage.setItem(STORAGE_KEYS.WALLET, publicKey);
+        localStorage.removeItem("dapp_public_key"); // Очищаем временные данные
 
-        // Вызываем подключение
-        const result = await connect();
-        if (!result) throw new Error("Failed to connect");
-
-        await handleWalletConnection(publicKey, "mobile_signature");
+        // Вызываем подключение с мобильной сигнатурой
+        await handleWalletConnection(publicKey, signature);
 
         // Очищаем URL
         window.history.replaceState({}, "", window.location.pathname);
@@ -192,7 +196,7 @@ export default function Home() {
         setRedirectPending(false);
       }
     }
-  }, [connect, handleWalletConnection]);
+  }, [handleWalletConnection]);
 
   // Обновляем useEffect для проверки возврата
   useEffect(() => {
@@ -218,8 +222,18 @@ export default function Home() {
   // Модифицируем handleCheckPayment
   const handleCheckPayment = async () => {
     try {
-      await checkPayment();
+      const response = await checkPayment();
       setIsPaymentModalOpen(false);
+
+      // Декодируем JWT токен
+      if (response.hasSubscription && response.accessToken) {
+        const decodedPayload = decodeJWT(response.accessToken);
+        if (decodedPayload) {
+          // Сохраняем декодированный JWT в localStorage
+          localStorage.setItem(STORAGE_KEYS.JWT_PAYLOAD, JSON.stringify(decodedPayload));
+          setJwtPayload(decodedPayload);
+        }
+      }
 
       // Сохраняем статус подписки
       localStorage.setItem(STORAGE_KEYS.SUBSCRIPTION, "true");

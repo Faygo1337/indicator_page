@@ -15,7 +15,7 @@ export async function verifyWallet(signature: string, wallet: string): Promise<V
     payload: {
       id: 1,
       linkedWallet: wallet,
-      topupWallet: "topup_wallet_123",
+      topupWallet: "ADgHfNqhY61Pcy3nHmsRDpczMkJ5DnTnZozKcGsM6wZh",
       subExpAt: 123,
       createdAt: 123,
       exp: 123,
@@ -33,7 +33,7 @@ export async function checkPayment(): Promise<PaymentResponse> {
 
   // Mock response - randomly return true or false
   return {
-    accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjcmVhdGVkQXQiOjE3NDQyOTcxNTMsImV4cCI6MTc0NDM4MzcyMywiaWF0IjoxNzQ0Mjk3MzIzLCJpZCI6MywibGlua2VkV2FsbGV0IjoiMnl6RUQzS2FXTDY1WUJxMlVTd0dIV2JkUE5QM2JxNlRRN1JBaUhic2JaQ2ciLCJzdWJFeHBBdCI6MCwidG9wdXBXYWxsZXQiOiIzekU4cUE4eFN1Nk5QbzR5V0trN3dWYXdWc3Nlb3hZS3VvTld1VlZLc1lxbiJ9.HeH-csxMUSyqV_6b_2HW5hfH1UAxFYTuTQ4_0z9E2Yw",
     expireAt: "2025-05-10 22:02:50.761638 +0300 +03",
     hasSubscription: Math.random() > 0.5,
     success: true

@@ -1,4 +1,4 @@
-import type { CryptoCard } from "./types"
+import type { CryptoCard } from "./api/types"
 
 // Mock data for crypto cards
 const mockCryptoCards: CryptoCard[] = [

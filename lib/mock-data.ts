@@ -1,4 +1,4 @@
-import type { CryptoCard } from "./types"
+import type { CryptoCard } from "./api/types"
 import CardLogo from "@/public/bloomLogo.jpg"
 // Генерация 16 карточек для сетки 4x4
 export const generateMockCards = (count = 16): CryptoCard[] => {

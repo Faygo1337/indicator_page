@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { CryptoCard as CryptoCardType } from "@/lib/types";
+import type { CryptoCard as CryptoCardType } from "@/lib/api/types";
 import {
   HoverCard,
   HoverCardContent,

@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { jwtDecode } from "jwt-decode"
-import type { JWTPayload } from "./types"
+import type { JWTPayload } from "./api/types"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

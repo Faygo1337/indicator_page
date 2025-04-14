@@ -89,17 +89,13 @@ export function PaymentModal({
         console.log("Generating QR code for wallet:", walletAddress);
 
         try {
-          new PublicKey(
-            "88FBdm4f7uBRcKRGganbRTsVpyxt9CJgNzw87H3s1Aft"
-          ).toBase58();
+          new PublicKey(walletAddress).toBase58();
         } catch (error) {
           console.error("Invalid wallet address:", error);
           throw new Error("Некорректный адрес кошелька");
         }
 
-        const recipient = new PublicKey(
-          "88FBdm4f7uBRcKRGganbRTsVpyxt9CJgNzw87H3s1Aft"
-        ).toBase58();
+        const recipient = new PublicKey(walletAddress).toBase58();
         const amount = new BigNumber(0.5);
         const label = "WhalesTrace Subscription";
         const message = "Payment for subscription";

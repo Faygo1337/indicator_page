@@ -112,18 +112,14 @@ export function usePhantomWallet(): PhantomMobileWalletState {
       setState((prev) => ({ ...prev, isConnecting: true }));
 
       if (state.isMobileDevice) {
-        // Генерируем keypair и сохраняем
+        // Генерируем только публичный ключ для мобильной версии
         const keypair = nacl.box.keyPair();
         const encodedPublicKey = bs58.encode(keypair.publicKey);
-        const encodedSecretKey = bs58.encode(keypair.secretKey);
         
-        localStorage.setItem('dapp_keypair', JSON.stringify({
-          publicKey: encodedPublicKey,
-          secretKey: encodedSecretKey,
-          pendingConnection: true // Флаг ожидания подключения
-        }));
+        // Сохраняем только публичный ключ
+        localStorage.setItem('dapp_public_key', encodedPublicKey);
 
-        // Формируем deep link с корректными параметрами
+        // Формируем deep link
         const params = new URLSearchParams({
           dapp_encryption_public_key: encodedPublicKey,
           redirect_url: window.location.href,
@@ -140,23 +136,21 @@ export function usePhantomWallet(): PhantomMobileWalletState {
         throw new Error('Phantom wallet not installed');
       }
 
-      const response = await provider.connect().catch((err) => {
-        throw err;
-      });
+      // Подключаемся к кошельку
+      const resp = await provider.connect();
+      const walletAddress = resp.publicKey.toString();
 
-      const walletAddress = response.publicKey.toString();
       try {
-        // Подписываем сообщение для аутентификации
-        const timestamp = Date.now();
-        const message = new TextEncoder().encode(
-          `Signing in to Trace with wallet: ${walletAddress} TS: ${timestamp}`
-        );
+        // Формируем сообщение для подписи
+        const message = new TextEncoder().encode(`Signing in to Trace with wallet: ${walletAddress} TS: ${Date.now()}`);
+
+        // Подписываем сообщение
         const signedMessage = await provider.signMessage(message, 'utf8');
-        const signature = Buffer.from(signedMessage.signature).toString('hex');
+        const signature = bs58.encode(signedMessage.signature);
 
         setState((prev) => ({
           ...prev,
-          publicKey: response.publicKey,
+          publicKey: resp.publicKey,
           wallet: walletAddress,
           isConnecting: false,
         }));
@@ -176,7 +170,7 @@ export function usePhantomWallet(): PhantomMobileWalletState {
       setState((prev) => ({ ...prev, isConnecting: false }));
       throw error;
     }
-  }, [getProvider, state.isMobileDevice, createMobileDeepLink]);
+  }, [getProvider, state.isMobileDevice]);
 
   // Сброс состояния кошелька
   const resetWalletState = useCallback(() => {
@@ -212,8 +206,8 @@ export function usePhantomWallet(): PhantomMobileWalletState {
         if (!state.publicKey) throw new Error('Wallet not connected');
 
         const encodedMessage = new TextEncoder().encode(message);
-        const signedMessage = await provider.signMessage(encodedMessage, 'utf8');
-        return Buffer.from(signedMessage.signature).toString('hex');
+        const signedMessage = await provider.signMessage(encodedMessage, "utf8");
+        return bs58.encode(signedMessage.signature);
       } catch (error) {
         console.error('Error signing message:', error);
         throw error;
