@@ -22,9 +22,9 @@ export function decodeJWT(token: string): JWTPayload | null {
 }
 
 export function isSubscriptionValid(payload: JWTPayload | null): boolean {
-  if (!payload || !payload.subscriptionExpireAt) return false
+  if (!payload || !payload.subExpAt) return false
 
-  const expireDate = new Date(payload.subscriptionExpireAt)
+  const expireDate = new Date(payload.subExpAt)
   const now = new Date()
 
   return expireDate > now

@@ -223,6 +223,8 @@ export default function Home() {
 
       // Сохраняем статус подписки
       localStorage.setItem(STORAGE_KEYS.SUBSCRIPTION, "true");
+      // Удаляем запись о модальном окне из localStorage
+      localStorage.removeItem("payment_modal_open");
       setHasSubscription(true);
 
       setCryptoCards(mockCryptoCards);

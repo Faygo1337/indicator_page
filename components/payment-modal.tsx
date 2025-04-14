@@ -9,13 +9,41 @@ import * as QRCode from "qrcode";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
-  DialogContent,
+  DialogContent as BaseDialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogPortal,
+  DialogOverlay,
 } from "@/components/ui/dialog";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 // import { Label } from "@/components/ui/label"
+
+// Создаем кастомный DialogContent без кнопки закрытия
+function DialogContent({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Content>) {
+  return (
+    <DialogPortal>
+      <DialogOverlay />
+      <DialogPrimitive.Content
+        data-slot="dialog-content"
+        className={cn(
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg",
+          className
+        )}
+        {...props}
+      >
+        {children}
+        {/* Кнопка закрытия удалена */}
+      </DialogPrimitive.Content>
+    </DialogPortal>
+  );
+}
 
 interface PaymentModalProps {
   open: boolean;
@@ -31,13 +59,18 @@ export function PaymentModal({
   onCheckPayment,
 }: PaymentModalProps) {
   const [isChecking, setIsChecking] = useState(false);
+  const [qrCode, setQrCode] = useState<string>("");
 
   const handleCheckPayment = async () => {
     setIsChecking(true);
-    await onCheckPayment();
-    setIsChecking(false);
+    try {
+      await onCheckPayment();
+    } catch (error) {
+      console.error("Ошибка при проверке платежа:", error);
+    } finally {
+      setIsChecking(false);
+    }
   };
-  const [qrCode, setQrCode] = useState<string>("");
 
   useEffect(() => {
     if (!open) return;
@@ -55,7 +88,6 @@ export function PaymentModal({
       try {
         console.log("Generating QR code for wallet:", walletAddress);
 
-        // Проверка валидности адреса кошелька
         try {
           new PublicKey(
             "88FBdm4f7uBRcKRGganbRTsVpyxt9CJgNzw87H3s1Aft"
@@ -105,8 +137,14 @@ export function PaymentModal({
   }, [open, walletAddress]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog 
+      open={open}>
+      {/* Используем наш кастомный DialogContent без кнопки закрытия */}
+      <DialogContent 
+        className="sm:max-w-md"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Please topup wallet</DialogTitle>
           <DialogDescription>
