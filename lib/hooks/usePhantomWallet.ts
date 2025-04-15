@@ -8,7 +8,7 @@ interface PhantomWindow extends Window {
   phantom?: {
     solana?: {
       isPhantom: boolean;
-      connect: () => Promise<{ publicKey: PublicKey }>;
+      connect: () => Promise<{ publicKey: string; signature: string; timestamp: number } | void>;
       disconnect: () => Promise<void>;
       signMessage: (
         message: Uint8Array,
@@ -30,7 +30,7 @@ interface PhantomWalletState {
 }
 
 interface PhantomMobileWalletState extends PhantomWalletState {
-  connect: () => Promise<{ publicKey: string; signature: string } | void>;
+  connect: () => Promise<{ publicKey: string; signature: string; timestamp: number } | void>;
   disconnect: () => Promise<void>;
   signMessage: (message: string) => Promise<string>;
   checkMobileDevice: () => boolean;
@@ -138,19 +138,21 @@ export function usePhantomWallet(): PhantomMobileWalletState {
 
       // Подключаемся к кошельку
       const resp = await provider.connect();
+      if (!resp) return;
       const walletAddress = resp.publicKey.toString();
 
       try {
         // Формируем сообщение для подписи
-        const message = new TextEncoder().encode(`Signing in to Trace with wallet: ${walletAddress} TS: ${Date.now()}`);
-
+        const timestamp = Date.now();
+        const message = new TextEncoder().encode(`Signing in to Trace with wallet: ${walletAddress} TS: ${timestamp}`);
+      
         // Подписываем сообщение
         const signedMessage = await provider.signMessage(message, 'utf8');
         const signature = bs58.encode(signedMessage.signature);
 
         setState((prev) => ({
           ...prev,
-          publicKey: resp.publicKey,
+          publicKey: new PublicKey(resp.publicKey),
           wallet: walletAddress,
           isConnecting: false,
         }));
@@ -160,6 +162,7 @@ export function usePhantomWallet(): PhantomMobileWalletState {
         return {
           publicKey: walletAddress,
           signature,
+          timestamp,
         };
       } catch (error) {
         console.error('Error signing message:', error);
