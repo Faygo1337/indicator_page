@@ -36,14 +36,14 @@ export const API_HOST = 'https://whales.trace.foundation';
  * Headers required:
  * - Authorization: Bearer {{accessToken}}
  */
-export const WS_ENDPOINT = 'wss://whales.trace.foundation/ws';
+export const WS_ENDPOINT = 'wss://whales.trace.foundation/api/stream';
 
 /**
  * API Endpoints
  */
 export const API_ENDPOINTS = {
   verify: `${API_HOST}/api/verify`,
-  payment: `${API_HOST}/payment`,
+  payment: `${API_HOST}/api/payment`,
 } as const;
 
 /**

@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/testWS.js
+/__tests
+/.cursor
 
 # next.js
 /.next/

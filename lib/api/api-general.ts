@@ -6,7 +6,8 @@ import {
   WS_ENDPOINT, 
   NewSignalMessage, 
   UpdateSignalMessage, 
-  JWTPayload 
+  JWTPayload,
+  CryptoCard 
 } from './types';
 import { decodeJWT, logDecodedJWT } from "@/lib/utils";
 import axios from 'axios';
@@ -35,6 +36,12 @@ class ApiGeneralService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectTimeout = 1000;
+  private connected = false;
+  
+  // Новые поля для обработки WebSocket
+  private newSignalCallbacks: ((data: CryptoCard) => void)[] = [];
+  private updateSignalCallbacks: ((token: string, updates: Partial<CryptoCard>) => void)[] = [];
+  private errorCallbacks: ((error: any) => void)[] = [];
 
   private constructor() {}
 
@@ -235,9 +242,7 @@ class ApiGeneralService {
       }
       
       // Реальная реализация запроса к API
-      const url = walletAddress 
-        ? `${API_ENDPOINTS.payment}?walletAddress=${walletAddress}`
-        : API_ENDPOINTS.payment;
+      const url = API_ENDPOINTS.payment;
       
       const response = await axios.get(url, {
         headers: {
@@ -261,114 +266,447 @@ class ApiGeneralService {
 
   /**
    * Подключение к WebSocket для получения данных в реальном времени
+   * @param token JWT токен для аутентификации
    */
-  connectWebSocket(
-    onNewSignal: (data: NewSignalMessage) => void,
-    onUpdateSignal: (data: UpdateSignalMessage) => void,
-    onError: (error: Event) => void
-  ): void {
-    if (!this.accessToken) {
-      throw new Error('Нет токена доступа для WebSocket подключения');
-    }
+  private connecting = false;
 
-    this.initWebSocket(onNewSignal, onUpdateSignal, onError);
+  async connect(token: string): Promise<void> {
+    if (this.connected || this.connecting) {
+      console.log("WebSocket уже подключен или в процессе подключения");
+      return;
+    }
+  
+    if (!token) {
+      console.error("Отсутствует токен доступа для WebSocket");
+      this.notifyError(new Error("Отсутствует токен доступа"));
+      return;
+    }
+  
+    this.accessToken = token;
+    this.connecting = true;
+  
+    try {
+      this.initWebSocket();
+    } catch (error) {
+      console.error("Ошибка подключения WebSocket:", error);
+      this.notifyError(error);
+      this.connecting = false;
+    }
   }
 
   /**
    * Инициализация WebSocket соединения
    */
-  private initWebSocket(
-    onNewSignal: (data: NewSignalMessage) => void,
-    onUpdateSignal: (data: UpdateSignalMessage) => void, 
-    onError: (error: Event) => void
-  ): void {
+  private connectionTimeoutId: number | null = null;
+
+  private initWebSocket(): void {
+    console.log(`Подключение к WebSocket: ${WS_ENDPOINT}`);
+  
     this.ws = new WebSocket(WS_ENDPOINT);
+  
+    this.ws.onopen = this.handleOpen.bind(this);
+    this.ws.onmessage = this.handleMessage.bind(this);
+    this.ws.onerror = this.handleError.bind(this);
+    this.ws.onclose = this.handleClose.bind(this);
+  
+    this.connectionTimeoutId = window.setTimeout(() => {
+      if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+        console.warn("Таймаут подключения к WebSocket, закрываем соединение");
+        this.ws.close(4000, "Connection timeout");
+      }
+    }, 10000); // 10 секунд
+  }
+  
+  
+  /**
+   * Обработчик открытия соединения
+   */
+  private handleOpen(): void {
+    console.log("WebSocket соединение установлено успешно");
+    
+    if (this.connectionTimeoutId) {
+      clearTimeout(this.connectionTimeoutId);
+      this.connectionTimeoutId = null;
+    }
+  
+    this.connected = true;
+    this.connecting = false;
+    this.reconnectAttempts = 0;
+  
+    this.sendAuthMessage();
+  }
+  
+  
+  /**
+   * Отправка сообщения авторизации
+   */
+  private sendAuthMessage(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.error("WebSocket не подключен. Невозможно отправить авторизацию.");
+      return;
+    }
+  
+    if (!this.accessToken) {
+      console.error("Отсутствует токен доступа для авторизации WebSocket");
+      return;
+    }
+  
+    try {
+      const authMessage = JSON.stringify({ authToken: this.accessToken });
+      console.log("Отправка авторизационного сообщения:", authMessage.substring(0, 50) + "...");
+      this.ws.send(authMessage);
+    } catch (error) {
+      console.error("Ошибка отправки авторизации:", error);
+      this.notifyError(error);
+    }
+  }
+  
 
-    this.ws.onopen = () => {
-      console.log('WebSocket соединение установлено');
-      this.reconnectAttempts = 0;
-      this.ws?.send(JSON.stringify({ type: 'auth', token: this.accessToken }));
-    };
-
-    this.ws.onmessage = (event) => {
+  /**
+   * Обработчик входящих сообщений
+   */
+  private handleMessage(event: MessageEvent): void {
       try {
-        const data = JSON.parse(event.data);
-        
-        switch (data.type) {
-          case 'new_signal':
-            onNewSignal(data.payload);
-            break;
-          case 'update_signal':
-            onUpdateSignal(data.payload);
-            break;
-          default:
-            console.warn('Неизвестный тип сообщения:', data.type);
+      // Проверяем, не является ли сообщение просто строкой
+      if (typeof event.data === 'string' && (event.data === 'ping' || event.data === 'pong')) {
+        console.log(`Получен ответ: ${event.data}`);
+        return;
+      }
+      
+      let message: any;
+      try {
+        message = JSON.parse(event.data);
+        console.log("Получено WebSocket сообщение:", message);
+      } catch (parseError) {
+        console.error("Не удалось распарсить сообщение WebSocket:", event.data);
+        return;
+      }
+      
+      // Обработка типов сообщений
+      if (typeof message === 'object') {
+        // Определяем тип сообщения по структуре или явному полю type
+        if (message.type === 'signals.new' || (message.token && message.name && message.symbol)) {
+          // Если это сообщение signals.new или имеет структуру нового сигнала
+          const signalData = message.data || message;
+          const cardData = this.convertSignalToCard(signalData);
+          this.notifyNewSignal(cardData);
+        } 
+        else if (message.type === 'signals.update' || (message.token && (message.market || message.holdings))) {
+          // Если это сообщение signals.update или имеет структуру обновления
+          const updateData = message.data || message;
+          const token = updateData.token;
+          const updates = this.convertToCardUpdates(updateData);
+          this.notifyUpdateSignal(token, updates);
+        }
+        else if (message.type === 'auth_success' || message.type === 'connected') {
+          console.log("Авторизация успешна или соединение установлено:", message);
+        }
+        else if (message.type === 'error') {
+          console.error("Ошибка от WebSocket сервера:", message.message || message);
+          this.notifyError(new Error(message.message || "Неизвестная ошибка сервера"));
+        }
         }
       } catch (error) {
-        console.error('Ошибка обработки сообщения:', error);
-      }
-    };
-
-    this.ws.onerror = (error) => {
-      onError(error);
-      this.handleReconnect(onNewSignal, onUpdateSignal, onError);
-    };
+      console.error("Ошибка обработки сообщения WebSocket:", error);
+      this.notifyError(error);
+    }
+  }
+  
+  /**
+   * Обработчик ошибок
+   */
+  private handleError(event: Event): void {
+    console.error("Ошибка WebSocket:", event);
     
-    this.ws.onclose = () => {
-      console.log('WebSocket соединение закрыто');
-      this.handleReconnect(onNewSignal, onUpdateSignal, onError);
-    };
+    // Проверяем состояние соединения
+    if (this.ws) {
+      console.log(`Состояние WebSocket при ошибке: ${this.ws.readyState}`);
+      console.log(`URL соединения: ${WS_ENDPOINT}`);
+    }
+    
+    this.notifyError(event);
   }
 
   /**
-   * Обработка переподключения WebSocket
+   * Обработчик закрытия соединения
    */
-  private handleReconnect(
-    onNewSignal: (data: NewSignalMessage) => void,
-    onUpdateSignal: (data: UpdateSignalMessage) => void,
-    onError: (error: Event) => void
-  ): void {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      console.log(`Попытка переподключения ${this.reconnectAttempts} из ${this.maxReconnectAttempts}`);
-      
-      setTimeout(() => {
-        this.initWebSocket(onNewSignal, onUpdateSignal, onError);
-      }, this.reconnectTimeout * this.reconnectAttempts);
+  private handleClose(event: CloseEvent): void {
+    const codeMap: Record<number, string> = {
+      1000: "Нормальное закрытие",
+      1001: "Перезагрузка/уход",
+      1002: "Ошибка протокола",
+      1003: "Неприемлемые данные",
+      1006: "Аномальное закрытие",
+      1007: "Неверные данные",
+      1008: "Нарушение политики",
+      1009: "Сообщение слишком большое",
+      1010: "Требуется расширение",
+      1011: "Неожиданная ошибка",
+      1012: "Перезагрузка сервиса",
+      1013: "Попробуйте позже",
+      1014: "Ошибка на прокси",
+      1015: "Сбой TLS"
+    };
+  
+    const codeDescription = codeMap[event.code] || "Неизвестный код";
+    console.log(`WebSocket соединение закрыто: ${event.code} (${codeDescription}) ${event.reason}`);
+  
+    this.connected = false;
+    this.connecting = false;
+  
+    if (this.connectionTimeoutId) {
+      clearTimeout(this.connectionTimeoutId);
+      this.connectionTimeoutId = null;
+    }
+  
+    if (event.code === 1000) {
+      console.log("Нормальное закрытие соединения, не переподключаемся");
+    } else if (event.code === 1008) {
+      console.error("Ошибка политики (обычно проблема с авторизацией), не переподключаемся");
     } else {
-      console.error('Превышено максимальное количество попыток переподключения');
-      this.ws = null;
+      console.log("Пытаемся переподключиться...");
+      this.reconnect();
     }
   }
+  
+  
+  /**
+   * Попытка переподключения
+   */
+  private reconnect(): void {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error("Превышено максимальное количество попыток переподключения");
+      return;
+    }
+  
+    this.reconnectAttempts++;
+    const delay = this.reconnectTimeout * this.reconnectAttempts;
+  
+    console.log(`Переподключение через ${delay} мс (попытка ${this.reconnectAttempts})`);
+  
+    setTimeout(() => {
+      if (!this.connected && !this.connecting && this.accessToken) {
+        this.initWebSocket();
+      }
+    }, delay);
+  }
+  
 
   /**
    * Отключение от WebSocket
    */
-  disconnectWebSocket(): void {
+  disconnect(): void {
     if (this.ws) {
+      try {
       this.ws.close();
+      } catch (error) {
+        console.error("Ошибка закрытия WebSocket:", error);
+      }
+      
       this.ws = null;
+    }
+    
+    this.connected = false;
+    this.accessToken = null;
       this.reconnectAttempts = 0;
+    console.log("WebSocket отключен");
+  }
+  
+  /**
+   * Уведомление о новом сигнале
+   */
+  private notifyNewSignal(data: CryptoCard): void {
+    for (const callback of this.newSignalCallbacks) {
+      try {
+        callback(data);
+      } catch (error) {
+        console.error("Ошибка в обработчике нового сигнала:", error);
+      }
+    }
+  }
+  
+  /**
+   * Уведомление об обновлении сигнала
+   */
+  private notifyUpdateSignal(token: string, updates: Partial<CryptoCard>): void {
+    for (const callback of this.updateSignalCallbacks) {
+      try {
+        callback(token, updates);
+      } catch (error) {
+        console.error("Ошибка в обработчике обновления сигнала:", error);
+      }
     }
   }
 
   /**
-   * Получение токена доступа
+   * Уведомление об ошибке
    */
-  getAccessToken(): string | null {
-    return this.accessToken;
+  private notifyError(error: any): void {
+    for (const callback of this.errorCallbacks) {
+      try {
+        callback(error);
+      } catch (err) {
+        console.error("Ошибка в обработчике ошибок:", err);
+      }
+    }
   }
 
   /**
-   * Установка токена доступа
+   * Регистрация обработчика новых сигналов
    */
-  setAccessToken(token: string): void {
-    this.accessToken = token;
+  onNewSignal(callback: (data: CryptoCard) => void): void {
+    this.newSignalCallbacks.push(callback);
+  }
+  
+  /**
+   * Регистрация обработчика обновлений сигналов
+   */
+  onUpdateSignal(callback: (token: string, updates: Partial<CryptoCard>) => void): void {
+    this.updateSignalCallbacks.push(callback);
+  }
+  
+  /**
+   * Регистрация обработчика ошибок
+   */
+  onError(callback: (error: any) => void): void {
+    this.errorCallbacks.push(callback);
+  }
+  
+  /**
+   * Проверка состояния подключения
+   */
+  isConnected(): boolean {
+    return this.connected;
+  }
+
+  /**
+   * Преобразование сигнала в формат карточки
+   */
+  private convertSignalToCard(signal: NewSignalMessage): CryptoCard {
+    const tokenAge = signal.tokenCreatedAt ? 
+      this.formatTimestamp(signal.tokenCreatedAt) : 
+      "N/A";
+
+    // Преобразование социальных ссылок
+    const socialLinks: {
+      telegram?: string;
+      twitter?: string;
+      website?: string;
+    } = {};
+
+    if (signal.socials) {
+      if (signal.socials.tg) socialLinks.telegram = signal.socials.tg;
+      if (signal.socials.x) socialLinks.twitter = signal.socials.x;
+      if (signal.socials.web) socialLinks.website = signal.socials.web;
+    }
+
+    // Создаем объект карточки
+    return {
+      id: signal.token,
+      name: signal.name,
+      symbol: signal.symbol,
+      image: signal.logo,
+      marketCap: signal.market.circulatingSupply ? 
+        `$${(signal.market.circulatingSupply * signal.market.price).toFixed(2)}` : 
+        "N/A",
+      tokenAge,
+      top10: signal.holdings.top10 ? `${signal.holdings.top10.toFixed(2)}%` : "N/A",
+      devWalletHold: signal.holdings.devHolds ? `${signal.holdings.devHolds.toFixed(2)}%` : "0.00%",
+      first70BuyersHold: signal.holdings.first70 ? `${signal.holdings.first70.toFixed(2)}%` : "N/A",
+      insiders: signal.holdings.insidersHolds ? `${signal.holdings.insidersHolds.toFixed(2)}%` : "0.00%",
+      whales: signal.trades ? 
+        signal.trades.slice(0, 3).map(trade => ({
+          count: 1,
+          amount: `${trade.amtSol} SOL`
+        })) : 
+        [],
+      noMint: true,
+      blacklist: false,
+      burnt: "N/A",
+      top10Percentage: signal.holdings.top10 ? `${signal.holdings.top10.toFixed(2)}%` : "N/A",
+      priceChange: "×1.0",
+      socialLinks
+    };
+  }
+
+  /**
+   * Преобразование обновления в формат обновления карточки
+   */
+  private convertToCardUpdates(update: UpdateSignalMessage): Partial<CryptoCard> {
+    const result: Partial<CryptoCard> = {};
+    
+    // Обновляем рыночные данные, если они есть
+    if (update.market) {
+      if (update.market.price !== undefined) {
+        // Если есть цена, можно обновить marketCap
+        if (update.market.circulatingSupply !== undefined) {
+          result.marketCap = `$${(update.market.circulatingSupply * update.market.price).toFixed(2)}`;
+        }
+    
+        // Можно добавить изменение цены, если есть предыдущая цена
+        result.priceChange = "×1.1"; // Заглушка, в реальном приложении нужно вычислять
+      }
+    }
+
+    // Обновляем холдинги, если они есть
+    if (update.holdings) {
+      if (update.holdings.top10 !== undefined) {
+        result.top10 = `${update.holdings.top10.toFixed(2)}%`;
+        result.top10Percentage = `${update.holdings.top10.toFixed(2)}%`;
+      }
+      
+      if (update.holdings.devHolds !== undefined) {
+        result.devWalletHold = `${update.holdings.devHolds.toFixed(2)}%`;
+      }
+      
+      if (update.holdings.first70 !== undefined) {
+        result.first70BuyersHold = `${update.holdings.first70.toFixed(2)}%`;
+      }
+      
+      if (update.holdings.insidersHolds !== undefined) {
+        result.insiders = `${update.holdings.insidersHolds.toFixed(2)}%`;
+      }
+    }
+    
+    // Обновляем сделки, если они есть
+    if (update.trades && update.trades.length > 0) {
+      result.whales = update.trades.slice(0, 3).map(trade => ({
+        count: 1,
+        amount: `${trade.amtSol} SOL`
+      }));
+    }
+    
+    return result;
+  }
+  
+  /**
+   * Форматирование временной метки в читаемый формат
+   */
+  private formatTimestamp(timestamp: number): string {
+    const now = Date.now() / 1000;
+    const diff = now - timestamp;
+    
+    if (diff < 60) {
+      return `${Math.floor(diff)}с`;
+    } else if (diff < 3600) {
+      return `${Math.floor(diff / 60)}м`;
+    } else if (diff < 86400) {
+      const hours = Math.floor(diff / 3600);
+      const minutes = Math.floor((diff % 3600) / 60);
+      return `${hours}ч${minutes}м`;
+    } else {
+      const days = Math.floor(diff / 86400);
+      const hours = Math.floor((diff % 86400) / 3600);
+      return `${days}д${hours}ч`;
+    }
   }
 }
 
 // Создаем и экспортируем экземпляр сервиса
 export const apiGeneral = ApiGeneralService.getInstance();
+
+// Экспортируем для совместимости
+export const webSocketClient = apiGeneral;
 
 // Экспортируем функции для совместимости со старым кодом
 export async function verifyWallet(signature: string, wallet: string, timestamp?: number): Promise<VerifyResponse> {

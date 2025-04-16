@@ -5,10 +5,9 @@ import { Header } from "@/components/header";
 import { CryptoCard } from "@/components/crypto-card";
 import { PaymentModal } from "@/components/payment-modal";
 import { mockCryptoCards, createNewCard } from "@/lib/mock-data";
-import { verifyWallet, checkPayment } from "@/lib/api/api-general";
+import { verifyWallet, checkPayment, webSocketClient } from "@/lib/api/api-general";
 import { isSubscriptionValid, formatWalletAddress, decodeJWT } from "@/lib/utils";
 import { usePhantomWallet } from "@/lib/hooks/usePhantomWallet";
-import { webSocketClient, WebSocketClient } from "@/lib/websocket";
 import type { CryptoCard as CryptoCardType, JWTPayload, NewSignalMessage, UpdateSignalMessage } from "@/lib/api/types";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
@@ -372,7 +371,7 @@ export default function Home() {
   // Функция проверки статуса подписки
   const checkSubscriptionStatus = async (token: string): Promise<boolean> => {
     try {
-      const response = await fetch('https://whales.trace.foundation/payment', {
+      const response = await fetch('https://whales.trace.foundation/api/payment', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
