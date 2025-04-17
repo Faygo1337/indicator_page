@@ -103,8 +103,8 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
         // Рассчитываем коэффициент изменения
         const ratio = calculatePriceRatio(trackedData.marketCap, prevMarketCap);
         
-        // Обновляем значение priceChange в формате ×N.N
-        const priceChangeText = `×${ratio.toFixed(1)}`;
+        // Обновляем значение priceChange в формате ×N.NN (до сотых)
+        const priceChangeText = `×${ratio.toFixed(2)}`;
         
         // Обновляем поле через WebSocket API, если оно отличается
         if (trackedData.priceChange !== priceChangeText && updateCard) {
@@ -151,6 +151,14 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
       checkField('devWalletHold', trackedData.devWalletHold, wsData.devWalletHold);
       checkField('first70BuyersHold', trackedData.first70BuyersHold, wsData.first70BuyersHold);
       checkField('insiders', trackedData.insiders, wsData.insiders);
+      checkField('tokenAge', trackedData.tokenAge, wsData.tokenAge);
+      
+      // Обновляем список сделок (trades), если они изменились
+      if (JSON.stringify(trackedData.whales) !== JSON.stringify(wsData.whales)) {
+        fieldsToAnimate.whales = true;
+        hasChanges = true;
+        console.log(`[Card] Изменение trades`);
+      }
 
       // Если есть изменения, обновляем состояние и проигрываем анимацию
       if (hasChanges) {
@@ -160,7 +168,7 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
         
         // Обновляем с новыми данными немедленно
         const updatedData = {...trackedData, ...wsData, _lastUpdated: Date.now()};
-        forceUpdateImmediate();
+        updateCard(trackedData.id, updatedData);
         
         // Удаляем анимацию через короткое время
         setTimeout(() => {
@@ -270,6 +278,28 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
     }
     
     return <div className={getUpdateStyle(field)}>{formatted}</div>;
+  };
+
+  // Улучшенная функция для отображения tokenAge
+  const renderTokenAge = (tokenAge?: string) => {
+    // Если значение отсутствует или равно "N/A"
+    if (!tokenAge || tokenAge === "N/A") {
+      return <div>-</div>;
+    }
+    
+    // Проверяем, если tokenAge содержит числовое значение с единицей измерения
+    if (/^\d+d$/.test(tokenAge)) {
+      // Это формат "Xd" (X дней)
+      return <div className={getUpdateStyle('tokenAge')}>{tokenAge}</div>;
+    }
+    
+    // Если это просто число, добавляем "d" для обозначения дней
+    if (/^\d+$/.test(tokenAge)) {
+      return <div className={getUpdateStyle('tokenAge')}>{tokenAge}d</div>;
+    }
+    
+    // В остальных случаях выводим как есть
+    return <div className={getUpdateStyle('tokenAge')}>{tokenAge}</div>;
   };
 
   // Объединяем данные из props и WebSocket
@@ -465,7 +495,9 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
                 <span className="mr-1">⏳</span>
                 <span className="text-muted-foreground">Token Age:</span>
               </div>
-              <div className="text-right">{displayData?.tokenAge}</div>
+              <div className="text-right">
+                {renderTokenAge(displayData?.tokenAge)}
+              </div>
 
               <div className="flex items-center">
                 <span className="mr-1">💡</span>
@@ -515,7 +547,7 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
                     className="h-7 text-xs px-2 flex items-center gap-1 hover:bg-secondary"
                   >
                     <BarChart3 className="h-3 w-3" />
-                    View whales
+                    View trades
                   </Button>
                 </HoverCardTrigger>
                 <HoverCardContent
@@ -524,8 +556,8 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
                   className="w-auto p-3 bg-gray-900 border-gray-800 text-gray-200"
                 >
                   <div className="space-y-1">
-                    <h4 className="text-xs font-semibold">💸 Whales:</h4>
-                    {displayData?.whales.map((whale, index) => (
+                    <h4 className="text-xs font-semibold">💸 Trades:</h4>
+                    {displayData?.whales && displayData.whales.map((whale, index) => (
                       <p key={index} className="text-xs whitespace-nowrap">
                         ├ {whale.count} {whale.amount}
                       </p>
