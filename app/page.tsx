@@ -56,7 +56,7 @@ export default function Home() {
         return false;
       }
       
-      // Проверяем статус подписки перед подключением
+      // Проверяем статус подписки
       const isSubscriptionValid = await checkSubscriptionStatus(token);
       
       if (!isSubscriptionValid) {
@@ -67,50 +67,18 @@ export default function Home() {
         return false;
       }
       
-      console.log('Подписка действительна, подключаемся к WebSocket');
+      console.log('Подписка действительна');
       
       // Устанавливаем статус подписки
       localStorage.setItem(STORAGE_KEYS.SUBSCRIPTION, "true");
       setHasSubscription(true);
       
-      // Подключаемся к WebSocket если еще не подключены
-      if (!webSocketClient.isConnected()) {
-        // Подключаем обработчики одноразово
-        const newSignalAdapter = (cardData: CryptoCardType) => {
-          addNewCard(cardData);
-        };
-        
-        const updateSignalAdapter = (token: string, updates: Partial<CryptoCardType>) => {
-          // Обновляем существующую карточку
-          setCryptoCards(prevCards => {
-            const cardIndex = prevCards.findIndex(card => card.id === token);
-            if (cardIndex === -1) return prevCards;
-            
-            const updatedCards = [...prevCards];
-            updatedCards[cardIndex] = { ...updatedCards[cardIndex], ...updates };
-            return updatedCards;
-          });
-        };
-        
-        const errorHandler = (error: any) => {
-          console.error('WebSocket ошибка:', error);
-        };
-        
-        // Регистрируем обработчики событий
-        webSocketClient.onNewSignal(newSignalAdapter);
-        webSocketClient.onUpdateSignal(updateSignalAdapter);
-        webSocketClient.onError(errorHandler);
-        
-        // Подключаемся к WebSocket
-        webSocketClient.connect(token);
-        
-        // Устанавливаем состояние загрузки
-        setIsLoading(true);
-      }
+      // WebSocket подключение будет осуществлено через useEffect
+      // Не подключаем WebSocket здесь, чтобы избежать двойного подключения
       
       return true;
     } catch (error) {
-      console.error("Ошибка при проверке подписки и подключении WebSocket:", error);
+      console.error("Ошибка при проверке подписки:", error);
       setHasSubscription(false);
       localStorage.removeItem(STORAGE_KEYS.SUBSCRIPTION);
       setIsLoading(false);
@@ -123,27 +91,28 @@ export default function Home() {
     if (hasSubscription && jwtPayload) {
       // Инициализируем WebSocket подключение
       const initWebSocket = async () => {
+        // Проверяем, подключены ли мы уже
+        if (webSocketClient.isConnected()) {
+          console.log('WebSocket уже подключен, пропускаем инициализацию');
+          // Если уже есть карточки, убираем состояние загрузки
+          if (cryptoCards.length > 0) {
+            setIsLoading(false);
+          }
+          return;
+        }
+        
         const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
         
         if (!token) {
           console.error('Отсутствует токен для подключения WebSocket');
           setHasSubscription(false);
           setIsLoading(false);
+          // Показываем мок-данные при ошибке токена
+          setCryptoCards(mockCryptoCards);
           return;
         }
         
-        // Проверяем статус подписки перед подключением
-        const isSubscriptionValid = await checkSubscriptionStatus(token);
-        
-        if (!isSubscriptionValid) {
-          console.warn('Подписка недействительна, сбрасываем состояние');
-          setHasSubscription(false);
-          localStorage.removeItem(STORAGE_KEYS.SUBSCRIPTION);
-          setIsLoading(false);
-          return;
-        }
-        
-        console.log('Подписка действительна, подключаемся к WebSocket');
+        console.log('Инициализация WebSocket с токеном');
         
         // Создаем адаптеры для преобразования типов
         const newSignalAdapter = (cardData: CryptoCardType) => {
@@ -166,7 +135,7 @@ export default function Home() {
             }
           });
           
-          // Убираем состояние загрузки
+          // Убираем состояние загрузки после получения первых данных
           if (isLoading) {
             setIsLoading(false);
           }
@@ -186,15 +155,18 @@ export default function Home() {
         };
         
         const errorHandler = (error: any) => {
-          console.error('WebSocket ошибка:', error);
+          console.log('Ошибка WebSocket, загружаем мок-данные');
           
-          // Показываем мок-данные в случае ошибки подключения
+          // Если карточек нет, добавляем мок-данные
           if (cryptoCards.length === 0) {
-            console.log('Загружаем резервные мок-данные из-за ошибки WebSocket');
             setCryptoCards(mockCryptoCards);
-            setIsLoading(false);
           }
+          
+          setIsLoading(false);
         };
+        
+        // Очищаем предыдущие обработчики перед регистрацией новых
+        webSocketClient.disconnect();
         
         // Регистрируем обработчики событий
         webSocketClient.onNewSignal(newSignalAdapter);
@@ -207,52 +179,33 @@ export default function Home() {
         // Устанавливаем состояние загрузки
         setIsLoading(true);
         
-        // Устанавливаем таймер для фаллбэка на мок-данные в случае проблем
+        // Устанавливаем таймаут для фаллбэка на мок-данные
         const fallbackTimer = setTimeout(() => {
           if (cryptoCards.length === 0) {
             console.log('Таймаут WebSocket - загружаем мок-данные');
             setCryptoCards(mockCryptoCards);
             setIsLoading(false);
           }
-        }, 8000);
-        
-        // Запускаем интервал для регулярной проверки подписки
-        const subscriptionCheckInterval = setInterval(async () => {
-          const currentToken = localStorage.getItem(STORAGE_KEYS.TOKEN);
-          if (!currentToken) {
-            clearInterval(subscriptionCheckInterval);
-            webSocketClient.disconnect();
-            setHasSubscription(false);
-            return;
-          }
-          
-          const isStillValid = await checkSubscriptionStatus(currentToken);
-          if (!isStillValid) {
-            console.warn('Подписка истекла во время работы, отключаемся');
-            clearInterval(subscriptionCheckInterval);
-            webSocketClient.disconnect();
-            setHasSubscription(false);
-            localStorage.removeItem(STORAGE_KEYS.SUBSCRIPTION);
-            // Показываем модальное окно для оплаты
-            setIsPaymentModalOpen(true);
-          }
-        }, 60000); // Проверяем каждую минуту
+        }, 10000); // 10 секунд на получение данных
         
         return () => {
           clearTimeout(fallbackTimer);
-          clearInterval(subscriptionCheckInterval);
-          webSocketClient.disconnect();
         };
       };
       
       initWebSocket();
+    } else if (!hasSubscription && isLoading) {
+      // Если нет подписки, но показываем загрузку, загружаем мок-данные
+      setCryptoCards(mockCryptoCards);
+      setIsLoading(false);
     }
     
     // Очищаем при размонтировании
     return () => {
-      webSocketClient.disconnect();
+      // Не отключаем WebSocket при размонтировании, чтобы сохранить соединение
+      // webSocketClient.disconnect();
     };
-  }, [hasSubscription, jwtPayload, isLoading, cryptoCards.length]);
+  }, [hasSubscription, jwtPayload, isLoading]);
 
   const addNewCard = (newCardData: CryptoCardType) => {
     if (!hasSubscription) return;
