@@ -4,13 +4,28 @@ import { useEffect, useState, useCallback } from "react";
 import { Header } from "@/components/header";
 import { CryptoCard } from "@/components/crypto-card";
 import { PaymentModal } from "@/components/payment-modal";
-import { mockCryptoCards, createNewCard } from "@/lib/mock-data";
+// import { mockCryptoCards, createNewCard } from "@/lib/mock-data";
 import { verifyWallet, checkPayment, webSocketClient } from "@/lib/api/api-general";
 import { isSubscriptionValid, formatWalletAddress, decodeJWT } from "@/lib/utils";
 import { usePhantomWallet } from "@/lib/hooks/usePhantomWallet";
 import type { CryptoCard as CryptoCardType, JWTPayload, NewSignalMessage, UpdateSignalMessage } from "@/lib/api/types";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
+import { useWebSocket } from '@/lib/context/WebSocketContext';
+
+// Расширяем тип CryptoCardType для добавления метаданных
+interface ExtendedCryptoCard extends CryptoCardType {
+  _receivedAt?: number;
+  _lastUpdated?: number;
+  _updateId?: string;
+}
+
+// Расширяем интерфейс для данных из WebSocket
+interface ExtendedCryptoCardFromContext extends CryptoCardType {
+  _receivedAt?: number;
+  _lastUpdated?: number;
+  _updateId?: string;
+}
 
 // В начале файла добавим константы для ключей localStorage
 const STORAGE_KEYS = {
@@ -31,7 +46,7 @@ export default function Home() {
     return saved ? JSON.parse(saved) : null;
   });
 
-  const [cryptoCards, setCryptoCards] = useState<CryptoCardType[]>([]);
+  const [cryptoCards, setCryptoCards] = useState<ExtendedCryptoCard[]>([]);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -43,6 +58,24 @@ export default function Home() {
   const [redirectPending, setRedirectPending] = useState<boolean>(false);
 
   const MAX_CARDS = 16;
+
+  // Получаем данные из WebSocket контекста
+  const { cards: wsCards, status, error, reconnect } = useWebSocket();
+  
+  // Преобразуем к нужному типу для избежания ошибок TypeScript
+  const cards: ExtendedCryptoCard[] = wsCards.map(card => ({
+    ...card,
+    _receivedAt: (card as any)._receivedAt || Date.now(),
+    _lastUpdated: (card as any)._lastUpdated || null,
+    _updateId: (card as any)._updateId || `card-${card.id}`
+  }));
+
+  // Добавляем эффект для отслеживания обновлений карточек
+  useEffect(() => {
+    if (cards.length > 0) {
+      console.log(`[Home] Получены ${cards.length} карточек от WebSocket`);
+    }
+  }, [cards]);
 
   // Создаем функцию для проверки подписки и подключения к WebSocket
   const checkAndConnectWebSocket = useCallback(async () => {
@@ -108,30 +141,56 @@ export default function Home() {
           setHasSubscription(false);
           setIsLoading(false);
           // Показываем мок-данные при ошибке токена
-          setCryptoCards(mockCryptoCards);
+          // setCryptoCards(mockCryptoCards);
           return;
         }
         
         console.log('Инициализация WebSocket с токеном');
         
         // Создаем адаптеры для преобразования типов
-        const newSignalAdapter = (cardData: CryptoCardType) => {
+        const newSignalAdapter = (cardData: ExtendedCryptoCard) => {
           console.log('Получена новая карточка:', cardData.id);
+          
+          // Добавляем метку времени получения для отслеживания и сортировки
+          const cardWithTimestamp = {
+            ...cardData,
+            _receivedAt: Date.now()
+          };
+          
           // Добавляем новую карточку в список
           setCryptoCards(prevCards => {
             // Проверяем, существует ли уже такая карточка
             const existingCardIndex = prevCards.findIndex(card => card.id === cardData.id);
             
             if (existingCardIndex >= 0) {
-              // Обновляем существующую карточку
+              // Обновляем существующую карточку, но сохраняем её позицию
+              console.log(`Обновление существующей карточки ${cardData.id} в позиции ${existingCardIndex}`);
+              
               const updatedCards = [...prevCards];
-              updatedCards[existingCardIndex] = cardData;
+              
+              // Если карточка существует, обновляем её, сохраняя свойство _receivedAt для сортировки
+              updatedCards[existingCardIndex] = {
+                ...cardWithTimestamp,
+                _receivedAt: prevCards[existingCardIndex]._receivedAt || Date.now()
+              };
+              
               return updatedCards;
             } else {
-              // Добавляем новую карточку в начало
-              const updatedCards = [cardData, ...prevCards];
+              // Добавляем новую карточку в начало и сортируем по времени получения
+              console.log(`Добавление новой карточки ${cardData.id}`);
+              
+              // Комбинируем новые и существующие карточки
+              const newCardList = [cardWithTimestamp, ...prevCards];
+              
+              // Сортируем карточки по времени получения (новые сверху)
+              const sortedCards = newCardList.sort((a, b) => {
+                const timeA = a._receivedAt || 0;
+                const timeB = b._receivedAt || 0;
+                return timeB - timeA; // Сортировка по убыванию (новые сверху)
+              });
+              
               // Ограничиваем количество карточек
-              return updatedCards.slice(0, MAX_CARDS);
+              return sortedCards.slice(0, MAX_CARDS);
             }
           });
           
@@ -141,17 +200,162 @@ export default function Home() {
           }
         };
         
-        const updateSignalAdapter = (token: string, updates: Partial<CryptoCardType>) => {
-          console.log('Получено обновление для токена:', token);
-          // Обновляем существующую карточку
-          setCryptoCards(prevCards => {
+        const updateSignalAdapter = (token: string, updates: any) => {
+          console.log('Получено обновление для токена:', token, updates);
+          
+          // Оптимизация: добавляем идентификатор обновления для проверки актуальности
+          const updateId = Date.now();
+          
+          // Используем функциональную форму обновления состояния
+          setCryptoCards((prevCards) => {
+            // Проверяем наличие карты в массиве
             const cardIndex = prevCards.findIndex(card => card.id === token);
-            if (cardIndex === -1) return prevCards;
+            if (cardIndex === -1) {
+              console.log('Карточка с токеном', token, 'не найдена');
+              return prevCards;
+            }
             
+            console.log('Обновляем карточку', cardIndex, 'с данными:', updates);
+            
+            // Создаем новый массив и глубокую копию карточки для обновления
             const updatedCards = [...prevCards];
-            updatedCards[cardIndex] = { ...updatedCards[cardIndex], ...updates };
-            return updatedCards;
+            const currentCard = JSON.parse(JSON.stringify(updatedCards[cardIndex])) as ExtendedCryptoCard;
+            
+            // Флаг для отслеживания любых изменений
+            let hasChanges = false;
+            
+            // Обрабатываем обновления рыночных данных
+            if (updates.market) {
+              if ('price' in updates.market && updates.market.price !== undefined) {
+                const newPrice = updates.market.price;
+                
+                // Извлекаем числовое значение из marketCap
+                const oldPriceStr = currentCard.marketCap;
+                const oldPrice = parseFloat(oldPriceStr.replace(/[^0-9.]/g, ''));
+                
+                console.log('Обновление цены:', { 
+                  id: token, 
+                  oldPrice, 
+                  oldPriceFormatted: oldPriceStr,
+                  newPrice,
+                  updateId
+                });
+                
+                // Обновляем marketCap
+                if (!isNaN(newPrice)) {
+                  currentCard.marketCap = `$${newPrice.toFixed(5)}`;
+                  hasChanges = true;
+                  
+                  // Рассчитываем изменение цены
+                  if (oldPrice && oldPrice > 0) {
+                    const change = newPrice / oldPrice;
+                    
+                    // Форматируем изменение цены для отображения
+                    currentCard.priceChange = `×${change.toFixed(1)}`;
+                    console.log('Рассчитано новое изменение цены:', currentCard.priceChange);
+                    hasChanges = true;
+                  }
+                }
+              }
+              
+              if ('circulatingSupply' in updates.market && !isNaN(updates.market.circulatingSupply)) {
+                const newSupply = updates.market.circulatingSupply;
+                console.log('Новое circulatingSupply:', newSupply, 'для токена', token);
+                // Здесь можно было бы обновить какое-то поле, если бы оно отображалось на UI
+                hasChanges = true;
+              }
+            }
+            
+            // Обрабатываем обновления холдингов
+            if (updates.holdings) {
+              if ('top10' in updates.holdings && updates.holdings.top10 !== undefined) {
+                const newTop10 = updates.holdings.top10;
+                currentCard.top10 = `${newTop10.toFixed(2)}%`;
+                console.log('Обновлен top10:', currentCard.top10, 'для токена', token);
+                hasChanges = true;
+              }
+              
+              if ('devHolds' in updates.holdings && updates.holdings.devHolds !== undefined) {
+                const newDevHolds = updates.holdings.devHolds;
+                currentCard.devWalletHold = `${newDevHolds.toFixed(2)}%`;
+                console.log('Обновлен devWalletHold:', currentCard.devWalletHold, 'для токена', token);
+                hasChanges = true;
+              }
+              
+              if ('insidersHolds' in updates.holdings && updates.holdings.insidersHolds !== undefined) {
+                const newInsiders = updates.holdings.insidersHolds;
+                currentCard.insiders = `${newInsiders.toFixed(2)}%`;
+                console.log('Обновлен insiders:', currentCard.insiders, 'для токена', token);
+                hasChanges = true;
+              }
+              
+              if ('first70' in updates.holdings && updates.holdings.first70 !== undefined) {
+                const newFirst70 = updates.holdings.first70;
+                currentCard.first70BuyersHold = `${newFirst70.toFixed(2)}%`;
+                console.log('Обновлен first70BuyersHold:', currentCard.first70BuyersHold, 'для токена', token);
+                hasChanges = true;
+              }
+            }
+            
+            // Обрабатываем обновления трейдов
+            if (updates.trades && updates.trades.length > 0) {
+              console.log('Получены новые трейды для токена', token, updates.trades);
+              
+              // Создаем новые данные о китах на основе трейдов
+              currentCard.whales = updates.trades
+                .slice(0, 3)
+                .map((trade: { amtSol: number; signer: string; timestamp: number }) => ({
+                  count: Math.max(15, Math.floor(trade.amtSol * 100)),
+                  amount: `${trade.amtSol.toFixed(2)} SOL`
+                }));
+                
+              console.log('Обновлены киты:', currentCard.whales, 'для токена', token);
+              hasChanges = true;
+            }
+            
+            // Только если были изменения, заменяем карточку
+            if (hasChanges) {
+              // Добавляем метки времени и идентификатор обновления для отладки
+              currentCard._lastUpdated = updateId;
+              // Сохраняем старую метку получения или устанавливаем новую
+              currentCard._receivedAt = currentCard._receivedAt || updateId;
+              
+              // Заменяем обновленную карточку в массиве
+              updatedCards[cardIndex] = currentCard;
+              
+              // Добавляем дополнительное логирование
+              console.log(`Обновлена карточка ${token} [${updateId}]. Новые данные:`, {
+                marketCap: currentCard.marketCap,
+                top10: currentCard.top10,
+                devWalletHold: currentCard.devWalletHold,
+                insiders: currentCard.insiders,
+                first70BuyersHold: currentCard.first70BuyersHold,
+                priceChange: currentCard.priceChange,
+                whales: currentCard.whales ? currentCard.whales.length : 0
+              });
+              
+              // Возвращаем полностью новый массив для гарантированного ререндера
+              return [...updatedCards];
+            } else {
+              console.log('Нет изменений для карточки', token);
+              return prevCards;
+            }
           });
+          
+          // Используем setTimeout для имитации обновления в будущем (для отладки)
+          setTimeout(() => {
+            console.log('Проверка обновления UI через 1 секунду:', token);
+          }, 1000);
+        };
+        
+        // Вспомогательная функция для расчета изменения цены
+        const calculatePriceChange = (oldPrice?: number, newPrice?: number): string => {
+          if (oldPrice === undefined || newPrice === undefined || oldPrice === 0) {
+            return "×1.0";
+          }
+          
+          const change = newPrice / oldPrice;
+          return `×${change.toFixed(1)}`;
         };
         
         const errorHandler = (error: any) => {
@@ -159,7 +363,8 @@ export default function Home() {
           
           // Если карточек нет, добавляем мок-данные
           if (cryptoCards.length === 0) {
-            setCryptoCards(mockCryptoCards);
+            // setCryptoCards(mockCryptoCards);
+            return;
           }
           
           setIsLoading(false);
@@ -183,7 +388,7 @@ export default function Home() {
         const fallbackTimer = setTimeout(() => {
           if (cryptoCards.length === 0) {
             console.log('Таймаут WebSocket - загружаем мок-данные');
-            setCryptoCards(mockCryptoCards);
+            // setCryptoCards(mockCryptoCards);
             setIsLoading(false);
           }
         }, 10000); // 10 секунд на получение данных
@@ -196,7 +401,7 @@ export default function Home() {
       initWebSocket();
     } else if (!hasSubscription && isLoading) {
       // Если нет подписки, но показываем загрузку, загружаем мок-данные
-      setCryptoCards(mockCryptoCards);
+      // setCryptoCards(mockCryptoCards);
       setIsLoading(false);
     }
     
@@ -207,7 +412,7 @@ export default function Home() {
     };
   }, [hasSubscription, jwtPayload, isLoading]);
 
-  const addNewCard = (newCardData: CryptoCardType) => {
+  const addNewCard = (newCardData: ExtendedCryptoCard) => {
     if (!hasSubscription) return;
 
     setCryptoCards((prevCards) => {
@@ -232,16 +437,16 @@ export default function Home() {
     }
   }, []);
 
-  useEffect(() => {
-    if (hasSubscription) {
-      const interval = setInterval(() => {
-        const newCard = createNewCard();
-        addNewCard(newCard);
-      }, 30000);
+  // useEffect(() => {
+  //   if (hasSubscription) {
+  //     const interval = setInterval(() => {
+  //       const newCard = createNewCard();
+  //       addNewCard(newCard);
+  //     }, 30000);
 
-      return () => clearInterval(interval);
-    }
-  }, [hasSubscription]);
+  //     return () => clearInterval(interval);
+  //   }
+  // }, [hasSubscription]);
 
   // Добавляем функцию создания deep link
   const createMobileDeepLink = () => {
@@ -457,7 +662,7 @@ export default function Home() {
       const fallbackTimer = setTimeout(() => {
         if (cryptoCards.length === 0) {
           console.log('Используем мок-данные в качестве запасного варианта');
-          setCryptoCards(mockCryptoCards);
+          // setCryptoCards(mockCryptoCards);
           setIsLoading(false);
         }
       }, 5000);
@@ -580,8 +785,14 @@ export default function Home() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {isLoading || !hasSubscription
             ? skeletonCards
-            : cryptoCards.map((card) => (
-                <CryptoCard key={card.id} data={card} />
+            : cards
+                .sort((a, b) => {
+                  const timeA = a._receivedAt || 0;
+                  const timeB = b._receivedAt || 0;
+                  return timeB - timeA;
+                })
+                .map((card) => (
+                  <CryptoCard key={`${card.id}-${card._lastUpdated || 'initial'}`} data={card} />
               ))}
         </div>
       </main>

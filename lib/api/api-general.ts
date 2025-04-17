@@ -725,6 +725,18 @@ class ApiGeneralService {
    * Преобразование сигнала в формат карточки
    */
   private convertSignalToCard(signal: NewSignalMessage): CryptoCard {
+    // Проверка и нормализация URL изображения
+    let imageUrl = signal.logo || '';
+    
+    // Проверка является ли это ссылкой на gmgn.ai
+    if (imageUrl.includes('gmgn.ai/external-res')) {
+      // Использование прокси для изображений в режиме разработки
+      imageUrl = `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+    } else if (imageUrl && !imageUrl.startsWith('http')) {
+      // Добавление протокола, если отсутствует
+      imageUrl = `https://${imageUrl}`;
+    }
+    
     // Проверяем, что все необходимые поля существуют
     const marketCap = signal.market && signal.market.circulatingSupply && signal.market.price 
       ? `$${Math.round(signal.market.circulatingSupply * signal.market.price)}K`
@@ -764,7 +776,7 @@ class ApiGeneralService {
       id: signal.token,
       name: signal.name || "Неизвестно",
       symbol: signal.symbol || "???",
-      image: signal.logo || "", // Будет использовано дефолтное изображение при пустой строке
+      image: imageUrl,
       marketCap,
       tokenAge,
       top10,

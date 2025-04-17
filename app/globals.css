@@ -59,3 +59,48 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes gradientMove {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-gradient {
+  animation: gradientMove 2s ease infinite;
+}
+
+/* Добавляем анимацию перехода цвета для изменений цены */
+.price-change-badge {
+  transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease;
+}
+
+/* Улучшенная анимация градиента для подсветки изменений */
+@keyframes pulseGradient {
+  0% { 
+    background-position: 0% 50%;
+    box-shadow: 0 0 0 rgba(74, 222, 128, 0);
+  }
+  50% { 
+    background-position: 100% 50%;
+    box-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
+  }
+  100% { 
+    background-position: 0% 50%;
+    box-shadow: 0 0 0 rgba(74, 222, 128, 0);
+  }
+}
+
+/* Анимация для положительных изменений */
+.animate-positive {
+  background: linear-gradient(90deg, rgba(74, 222, 128, 0.05), rgba(74, 222, 128, 0.2), rgba(74, 222, 128, 0.05));
+  background-size: 200% 100%;
+  animation: pulseGradient 2s ease infinite;
+}
+
+/* Анимация для отрицательных изменений */
+.animate-negative {
+  background: linear-gradient(90deg, rgba(248, 113, 113, 0.05), rgba(248, 113, 113, 0.2), rgba(248, 113, 113, 0.05));
+  background-size: 200% 100%;
+  animation: pulseGradient 2s ease infinite;
+}

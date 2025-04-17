@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Image from "next/image";
 import {
   Copy,
@@ -25,28 +25,310 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { CryptoCard as CryptoCardType } from "@/lib/api/types";
+import { useTrackedData, useDebounce } from "@/lib/hooks/useForceUpdate";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { useLastActivity } from '@/lib/hooks/useLastActivity';
+import { useWebSocket } from "@/lib/context/WebSocketContext";
+import { formatNumber, extractNumericValue } from "@/lib/utils";
 
-interface CryptoCardProps {
-  data?: CryptoCardType;
-  loading?: boolean;
+// Расширенный тип для поддержки метаданных обновления
+interface ExtendedCryptoCard extends CryptoCardType {
+  _receivedAt?: number;
+  _lastUpdated?: number;
+  _updateId?: string;
 }
 
-export function CryptoCard({ data, loading = false }: CryptoCardProps) {
+interface CryptoCardProps {
+  data?: ExtendedCryptoCard;
+  loading?: boolean;
+  animate?: boolean;
+}
+
+const ANIMATION_DURATION = 1000; // 1 секунда для анимации
+
+// Функция для расчета коэффициента изменения цены
+const calculatePriceRatio = (currentMarketCap: string, previousMarketCap?: string): number => {
+  if (!previousMarketCap) return 1;
+  
+  // Извлекаем числовые значения из строк с форматированием
+  const currentValue = extractNumericValue(currentMarketCap);
+  const previousValue = extractNumericValue(previousMarketCap);
+  
+  if (isNaN(currentValue) || isNaN(previousValue) || previousValue === 0) {
+    return 1;
+  }
+  
+  // Рассчитываем отношение
+  return currentValue / previousValue;
+};
+
+export function CryptoCard({ data, loading = false, animate = true }: CryptoCardProps) {
   const [copied, setCopied] = useState(false);
-  const mockContractAddress = "0xMockSmartContractAddress";
+  const [imageError, setImageError] = useState(false);
+  const [prevData, setPrevData] = useState<ExtendedCryptoCard | null>(null);
+  const [animateFields, setAnimateFields] = useState<Record<string, boolean>>({});
+  const [isUpdating, setIsUpdating] = useState(false);
+  
+  // Используем хук для отслеживания изменений данных с правильным типом
+  const [trackedData, forceUpdateImmediate] = useTrackedData<ExtendedCryptoCard>(data || null);
+  
+  // Получаем статус соединения и данные из WebSocket контекста
+  const { status, cards, updateCard } = useWebSocket();
+  const isConnected = status === 'connected';
+  
+  // Находим данные из WebSocket, соответствующие данной карточке
+  const wsData = useMemo(() => {
+    if (!data?.id || !cards || !cards.length) return null;
+    return cards.find(card => card.id === data.id);
+  }, [cards, data?.id]);
+  
+  // Отслеживаем предыдущие значения для анимации
+  useEffect(() => {
+    if (trackedData && (!prevData || prevData.id !== trackedData.id)) {
+      setPrevData({...trackedData});
+    }
+  }, [trackedData, prevData]);
+  
+  // Для хранения предыдущего значения marketCap
+  const [prevMarketCap, setPrevMarketCap] = useState<string | undefined>(undefined);
+  
+  // Отслеживаем изменения marketCap для вычисления соотношения
+  useEffect(() => {
+    if (trackedData?.marketCap && trackedData.marketCap !== prevMarketCap) {
+      if (prevMarketCap) {
+        // Рассчитываем коэффициент изменения
+        const ratio = calculatePriceRatio(trackedData.marketCap, prevMarketCap);
+        
+        // Обновляем значение priceChange в формате ×N.N
+        const priceChangeText = `×${ratio.toFixed(1)}`;
+        
+        // Обновляем поле через WebSocket API, если оно отличается
+        if (trackedData.priceChange !== priceChangeText && updateCard) {
+          updateCard(trackedData.id, { 
+            priceChange: priceChangeText
+          });
+        }
+      }
+      
+      // Сохраняем текущее значение для следующего сравнения
+      setPrevMarketCap(trackedData.marketCap);
+    }
+  }, [trackedData?.marketCap, prevMarketCap, trackedData?.id, trackedData?.priceChange, updateCard]);
+  
+  // Обновляем данные, если пришли новые с WebSocket
+  useEffect(() => {
+    if (wsData && trackedData) {
+      // Создаем объект для отслеживания изменившихся полей
+      const fieldsToAnimate: Record<string, boolean> = {};
+      let hasChanges = false;
+      
+      // Проверка изменений marketCap, нужно сохранить старое значение
+      // для правильного расчета отношения цен
+      if (wsData.marketCap !== trackedData.marketCap) {
+        fieldsToAnimate.marketCap = true;
+        fieldsToAnimate.priceChange = true; // Также будем анимировать priceChange
+        hasChanges = true;
+        
+        // Сохраняем предыдущее значение для расчета отношения
+        setPrevMarketCap(trackedData.marketCap);
+      }
+      
+      // Проверка изменений в основных полях с более чувствительным порогом
+      const checkField = (fieldName: keyof CryptoCardType, oldValue: any, newValue: any) => {
+        if (oldValue !== newValue) {
+          fieldsToAnimate[fieldName] = true;
+          hasChanges = true;
+          console.log(`[Card] Изменение ${String(fieldName)}: ${oldValue} -> ${newValue}`);
+        }
+      };
+      
+      // Проверяем все важные поля
+      checkField('top10', trackedData.top10, wsData.top10);
+      checkField('devWalletHold', trackedData.devWalletHold, wsData.devWalletHold);
+      checkField('first70BuyersHold', trackedData.first70BuyersHold, wsData.first70BuyersHold);
+      checkField('insiders', trackedData.insiders, wsData.insiders);
+
+      // Если есть изменения, обновляем состояние и проигрываем анимацию
+      if (hasChanges) {
+        setIsUpdating(true);
+        setPrevData({...trackedData}); // Сохраняем предыдущие значения
+        setAnimateFields(fieldsToAnimate);
+        
+        // Обновляем с новыми данными немедленно
+        const updatedData = {...trackedData, ...wsData, _lastUpdated: Date.now()};
+        forceUpdateImmediate();
+        
+        // Удаляем анимацию через короткое время
+        setTimeout(() => {
+          setAnimateFields({});
+          setIsUpdating(false);
+        }, 1500);
+      }
+    }
+  }, [wsData, trackedData, forceUpdateImmediate]);
+  
+  // Создаем дебаунсированную версию setAnimateFields
+  const debouncedSetAnimate = useDebounce((fields: Record<string, boolean>) => {
+    console.log('Применение анимации с задержкой:', Object.keys(fields));
+    setAnimateFields(fields);
+  }, 50);
+  
+  // Дебаунсированная версия forceUpdate
+  const forceUpdate = useDebounce(forceUpdateImmediate, 100);
+  
+  // Изменяем тип для lastUpdatedRef с string на number
+  const lastUpdatedRef = useRef<number | null>(null);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [lastActivity] = useLastActivity();
+  
+  // Логирование обновлений с дебаунсингом
+  const logUpdateRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Управление анимацией
+  useEffect(() => {
+    // Проверка на существование data и data._lastUpdated
+    if (!animate || !trackedData || !data || typeof data._lastUpdated === 'undefined') return;
+    
+    // Проверяем, действительно ли произошло обновление
+    if (lastUpdatedRef.current === data._lastUpdated || isAnimating) return;
+    
+    setIsAnimating(true);
+    
+    const timer = setTimeout(() => {
+      setIsAnimating(false);
+    }, ANIMATION_DURATION);
+    
+    return () => clearTimeout(timer);
+  }, [animate, data, trackedData, isAnimating]);
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(mockContractAddress);
+    navigator.clipboard.writeText(data?.id || "0xMockSmartContractAddress");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (loading || !data) {
+  const handleImageError = () => {
+    setImageError(true);
+  };
+
+  // Расширенная версия функции определения направления изменения цены
+  const getPriceChangeInfo = useMemo(() => {
+    if (!trackedData?.priceChange) return { isUp: true, value: "1.0", ratioValue: 1 };
+    
+    // Извлекаем числовое значение из "×1.2"
+    const value = trackedData.priceChange.replace('×', '');
+    const numValue = parseFloat(value);
+    const isUp = numValue >= 1.0;
+    
+    return {
+      isUp,
+      value,
+      ratioValue: numValue
+    };
+  }, [trackedData?.priceChange]);
+  
+  // Стиль для анимации обновления
+  const getUpdateStyle = (field: string) => {
+    if (animateFields[field]) {
+      return "bg-gradient-to-r from-emerald-600/10 via-emerald-600/30 to-emerald-600/10 bg-[length:200%_100%] animate-gradient rounded-md px-1";
+    }
+    return "";
+  };
+
+  // Код для отображения изменения значения с индикатором направления
+  const renderValueChange = (
+    currentValue: string, 
+    field: string, 
+    isPercent = false
+  ) => {
+    const formatted = formatNumber(currentValue, { isPercent });
+    
+    // Если поле анимируется, добавляем стрелки
+    if (animateFields[field] && prevData) {
+      const prevValueRaw = (prevData as any)[field] || '0';
+      const currentValueRaw = currentValue || '0';
+      
+      const prevNum = parseFloat(prevValueRaw.replace(/[^0-9.-]/g, ''));
+      const currentNum = parseFloat(currentValueRaw.replace(/[^0-9.-]/g, ''));
+      
+      if (!isNaN(prevNum) && !isNaN(currentNum)) {
+        const isIncreasing = currentNum > prevNum;
+        
+        return (
+          <div className={`flex items-center ${getUpdateStyle(field)}`}>
+            <span className={isIncreasing ? "text-green-400" : "text-red-400"}>
+              {isIncreasing ? "↑" : "↓"}
+            </span>
+            <span>{formatted}</span>
+          </div>
+        );
+      }
+    }
+    
+    return <div className={getUpdateStyle(field)}>{formatted}</div>;
+  };
+
+  // Объединяем данные из props и WebSocket
+  const displayData = useMemo(() => {
+    if (wsData) {
+      // Если есть данные с WebSocket, используем их, но сохраняем метаданные
+      return {
+        ...trackedData,
+        ...wsData,
+        _receivedAt: trackedData?._receivedAt || Date.now(),
+        _lastUpdated: Date.now(),
+        _updateId: trackedData?._updateId
+      };
+    }
+    return trackedData;
+  }, [wsData, trackedData]);
+
+  // Добавляем useEffect для локального обновления данных
+  useEffect(() => {
+    if (data?._updateId) {
+      console.log(`[CryptoCard] Обновление карточки ${data.id}`);
+    }
+  }, [data]);
+
+  // Рендеринг бейджа с изменением цены в более выразительном виде
+  const renderPriceChangeBadge = () => {
+    const { isUp, value, ratioValue } = getPriceChangeInfo;
+    
+    // Определяем классы в зависимости от направления изменения
+    const colorClasses = isUp
+      ? "text-green-500 border-green-500/20 bg-green-500/10"
+      : "text-red-500 border-red-500/20 bg-red-500/10";
+    
+    // Определяем интенсивность изменения для более выразительного эффекта
+    const intensityClass = Math.abs(ratioValue - 1) > 0.2 
+      ? (isUp ? "border-green-500/40 bg-green-500/20" : "border-red-500/40 bg-red-500/20")
+      : "";
+    
+    return (
+      <Badge
+        variant="outline"
+        className={cn(
+          `flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium`,
+          colorClasses,
+          intensityClass,
+          getUpdateStyle('priceChange')
+        )}
+      >
+        {isUp ? (
+          <ArrowUpRight className="h-2 w-2" />
+        ) : (
+          <ArrowDownRight className="h-2 w-2" />
+        )}
+        <span>×{value}</span>
+      </Badge>
+    );
+  };
+
+  if (loading || !displayData) {
     return (
       <Card className="overflow-hidden border-gray-800">
         <CardContent className="p-0">
@@ -96,10 +378,10 @@ export function CryptoCard({ data, loading = false }: CryptoCardProps) {
     );
   }
 
-  const isPriceUp = !data.priceChange.includes("-");
-
   return (
-    <Card className="block overflow-hidden border-gray-800">
+    <Card 
+      className={`block overflow-hidden border-gray-800 ${isUpdating ? 'ring-1 ring-green-500/40' : ''}`}
+    >
       <CardContent style={{ padding: "0.1rem .1rem 0" }}>
         <div className="p-4">
           {/* Header */}
@@ -108,18 +390,30 @@ export function CryptoCard({ data, loading = false }: CryptoCardProps) {
             style={{ justifyContent: "space-between", marginBottom: "1rem" }}
           >
             <div className="flex items-center gap-2">
-              <div className="h-12 w-12 rounded-md overflow-hidden">
-                <Image
-                  src={data.image || bloomLogo}
-                  alt={data.name}
-                  width={48}
-                  height={48}
-                  className="object-cover"
-                />
+              <div className="h-12 w-12 rounded-md overflow-hidden bg-gray-800 flex items-center justify-center">
+                {imageError || !displayData?.image ? (
+                  <div className="text-xl font-bold text-gray-400">
+                    {displayData?.symbol && displayData.symbol.charAt(0)}
+                  </div>
+                ) : (
+                  <img
+                    src={displayData.image}
+                    alt={displayData.name}
+                    width={48}
+                    height={48}
+                    className="object-cover w-full h-full"
+                    onError={handleImageError}
+                  />
+                )}
               </div>
               <div>
-                <h3 className="text-base font-semibold">{data.name}</h3>
-                <p className="text-xs text-muted-foreground">{data.symbol}</p>
+                <h3 className="text-base font-semibold">
+                  {displayData?.name}
+                  {isConnected && (
+                    <span className="ml-2 inline-flex h-2 w-2 rounded-full bg-green-500"></span>
+                  )}
+                </h3>
+                <p className="text-xs text-muted-foreground">{displayData?.symbol}</p>
               </div>
             </div>
 
@@ -163,37 +457,47 @@ export function CryptoCard({ data, loading = false }: CryptoCardProps) {
                 <span className="mr-1">💎</span>
                 <span className="text-muted-foreground">Market Cap:</span>
               </div>
-              <div className="text-right">{data.marketCap}</div>
+              <div className="text-right">
+                {renderValueChange(displayData?.marketCap || '', 'marketCap')}
+              </div>
 
               <div className="flex items-center">
                 <span className="mr-1">⏳</span>
                 <span className="text-muted-foreground">Token Age:</span>
               </div>
-              <div className="text-right">{data.tokenAge}</div>
+              <div className="text-right">{displayData?.tokenAge}</div>
 
               <div className="flex items-center">
                 <span className="mr-1">💡</span>
                 <span className="text-muted-foreground">Top10:</span>
               </div>
-              <div className="text-right">{data.top10}</div>
+              <div className="text-right">
+                {renderValueChange(displayData?.top10 || '', 'top10', true)}
+              </div>
 
               <div className="flex items-center">
                 <span className="mr-1">🧮</span>
                 <span className="text-muted-foreground">Dev Wallet:</span>
               </div>
-              <div className="text-right">{data.devWalletHold}</div>
+              <div className="text-right">
+                {renderValueChange(displayData?.devWalletHold || '', 'devWalletHold', true)}
+              </div>
 
               <div className="flex items-center">
                 <span className="mr-1">🧠</span>
                 <span className="text-muted-foreground">First 70 buyers:</span>
               </div>
-              <div className="text-right">{data.first70BuyersHold}</div>
+              <div className="text-right">
+                {renderValueChange(displayData?.first70BuyersHold || '', 'first70BuyersHold', true)}
+              </div>
 
               <div className="flex items-center">
                 <span className="mr-1">🐀</span>
                 <span className="text-muted-foreground">Insiders:</span>
               </div>
-              <div className="text-right">{data.insiders}</div>
+              <div className="text-right">
+                {renderValueChange(displayData?.insiders || '', 'insiders', true)}
+              </div>
             </div>
           </div>
 
@@ -221,7 +525,7 @@ export function CryptoCard({ data, loading = false }: CryptoCardProps) {
                 >
                   <div className="space-y-1">
                     <h4 className="text-xs font-semibold">💸 Whales:</h4>
-                    {data.whales.map((whale, index) => (
+                    {displayData?.whales.map((whale, index) => (
                       <p key={index} className="text-xs whitespace-nowrap">
                         ├ {whale.count} {whale.amount}
                       </p>
@@ -231,7 +535,7 @@ export function CryptoCard({ data, loading = false }: CryptoCardProps) {
               </HoverCard>
 
               <div className="flex gap-1">
-                {data.socialLinks.telegram && (
+                {displayData?.socialLinks.telegram && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -240,7 +544,7 @@ export function CryptoCard({ data, loading = false }: CryptoCardProps) {
                   >
                     <a
                       href=""
-                      // href={data.socialLinks.telegram}
+                      // href={displayData.socialLinks.telegram}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -250,7 +554,7 @@ export function CryptoCard({ data, loading = false }: CryptoCardProps) {
                   </Button>
                 )}
 
-                {data.socialLinks.twitter && (
+                {displayData?.socialLinks.twitter && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -259,7 +563,7 @@ export function CryptoCard({ data, loading = false }: CryptoCardProps) {
                   >
                     <a
                       href="https://x.com/whalestrace"
-                      // href={data.socialLinks.twitter}
+                      // href={displayData.socialLinks.twitter}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -269,7 +573,7 @@ export function CryptoCard({ data, loading = false }: CryptoCardProps) {
                   </Button>
                 )}
 
-                {data.socialLinks.website && (
+                {displayData?.socialLinks.website && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -277,7 +581,7 @@ export function CryptoCard({ data, loading = false }: CryptoCardProps) {
                     asChild
                   >
                     <a
-                      href={data.socialLinks.website}
+                      href={displayData.socialLinks.website}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -289,22 +593,7 @@ export function CryptoCard({ data, loading = false }: CryptoCardProps) {
               </div>
             </div>
 
-            <Badge
-              variant="outline"
-              className={cn(
-                "flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium",
-                isPriceUp
-                  ? "text-green-500 border-green-500/20 bg-green-500/10"
-                  : "text-red-500 border-red-500/20 bg-red-500/10"
-              )}
-            >
-              {isPriceUp ? (
-                <ArrowUpRight className="h-2 w-2" />
-              ) : (
-                <ArrowDownRight className="h-2 w-2" />
-              )}
-              <span>{data.priceChange}</span>
-            </Badge>
+            {renderPriceChangeBadge()}
           </div>
         </div>
       </CardContent>
