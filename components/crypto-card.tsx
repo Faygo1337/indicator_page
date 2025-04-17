@@ -122,22 +122,17 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
   // Обновляем данные, если пришли новые с WebSocket
   useEffect(() => {
     if (wsData && trackedData) {
-      // Создаем объект для отслеживания изменившихся полей
       const fieldsToAnimate: Record<string, boolean> = {};
       let hasChanges = false;
       
-      // Проверка изменений marketCap, нужно сохранить старое значение
-      // для правильного расчета отношения цен
       if (wsData.marketCap !== trackedData.marketCap) {
         fieldsToAnimate.marketCap = true;
-        fieldsToAnimate.priceChange = true; // Также будем анимировать priceChange
+        fieldsToAnimate.priceChange = true; 
         hasChanges = true;
         
-        // Сохраняем предыдущее значение для расчета отношения
         setPrevMarketCap(trackedData.marketCap);
       }
       
-      // Проверка изменений в основных полях с более чувствительным порогом
       const checkField = (fieldName: keyof CryptoCardType, oldValue: any, newValue: any) => {
         if (oldValue !== newValue) {
           fieldsToAnimate[fieldName] = true;
@@ -146,31 +141,26 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
         }
       };
       
-      // Проверяем все важные поля
       checkField('top10', trackedData.top10, wsData.top10);
       checkField('devWalletHold', trackedData.devWalletHold, wsData.devWalletHold);
       checkField('first70BuyersHold', trackedData.first70BuyersHold, wsData.first70BuyersHold);
       checkField('insiders', trackedData.insiders, wsData.insiders);
       checkField('tokenAge', trackedData.tokenAge, wsData.tokenAge);
       
-      // Обновляем список сделок (trades), если они изменились
       if (JSON.stringify(trackedData.whales) !== JSON.stringify(wsData.whales)) {
         fieldsToAnimate.whales = true;
         hasChanges = true;
         console.log(`[Card] Изменение trades`);
       }
 
-      // Если есть изменения, обновляем состояние и проигрываем анимацию
       if (hasChanges) {
         setIsUpdating(true);
-        setPrevData({...trackedData}); // Сохраняем предыдущие значения
+        setPrevData({...trackedData}); 
         setAnimateFields(fieldsToAnimate);
         
-        // Обновляем с новыми данными немедленно
         const updatedData = {...trackedData, ...wsData, _lastUpdated: Date.now()};
         updateCard(trackedData.id, updatedData);
         
-        // Удаляем анимацию через короткое время
         setTimeout(() => {
           setAnimateFields({});
           setIsUpdating(false);
@@ -179,29 +169,22 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
     }
   }, [wsData, trackedData, forceUpdateImmediate]);
   
-  // Создаем дебаунсированную версию setAnimateFields
   const debouncedSetAnimate = useDebounce((fields: Record<string, boolean>) => {
     console.log('Применение анимации с задержкой:', Object.keys(fields));
     setAnimateFields(fields);
   }, 50);
   
-  // Дебаунсированная версия forceUpdate
   const forceUpdate = useDebounce(forceUpdateImmediate, 100);
   
-  // Изменяем тип для lastUpdatedRef с string на number
   const lastUpdatedRef = useRef<number | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const [lastActivity] = useLastActivity();
   
-  // Логирование обновлений с дебаунсингом
   const logUpdateRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Управление анимацией
   useEffect(() => {
-    // Проверка на существование data и data._lastUpdated
     if (!animate || !trackedData || !data || typeof data._lastUpdated === 'undefined') return;
     
-    // Проверяем, действительно ли произошло обновление
     if (lastUpdatedRef.current === data._lastUpdated || isAnimating) return;
     
     setIsAnimating(true);
@@ -223,7 +206,6 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
     setImageError(true);
   };
 
-  // Расширенная версия функции определения направления изменения цены
   const getPriceChangeInfo = useMemo(() => {
     if (!trackedData?.priceChange) return { isUp: true, value: "1.0", ratioValue: 1 };
     
@@ -239,7 +221,6 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
     };
   }, [trackedData?.priceChange]);
   
-  // Стиль для анимации обновления
   const getUpdateStyle = (field: string) => {
     if (animateFields[field]) {
       return "bg-gradient-to-r from-emerald-600/10 via-emerald-600/30 to-emerald-600/10 bg-[length:200%_100%] animate-gradient rounded-md px-1";
@@ -247,7 +228,6 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
     return "";
   };
 
-  // Код для отображения изменения значения с индикатором направления
   const renderValueChange = (
     currentValue: string, 
     field: string, 
@@ -255,7 +235,6 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
   ) => {
     const formatted = formatNumber(currentValue, { isPercent });
     
-    // Если поле анимируется, добавляем стрелки
     if (animateFields[field] && prevData) {
       const prevValueRaw = (prevData as any)[field] || '0';
       const currentValueRaw = currentValue || '0';
@@ -280,32 +259,24 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
     return <div className={getUpdateStyle(field)}>{formatted}</div>;
   };
 
-  // Улучшенная функция для отображения tokenAge
   const renderTokenAge = (tokenAge?: string) => {
-    // Если значение отсутствует или равно "N/A"
     if (!tokenAge || tokenAge === "N/A") {
       return <div>-</div>;
     }
     
-    // Проверяем, если tokenAge содержит числовое значение с единицей измерения
     if (/^\d+d$/.test(tokenAge)) {
-      // Это формат "Xd" (X дней)
       return <div className={getUpdateStyle('tokenAge')}>{tokenAge}</div>;
     }
     
-    // Если это просто число, добавляем "d" для обозначения дней
     if (/^\d+$/.test(tokenAge)) {
       return <div className={getUpdateStyle('tokenAge')}>{tokenAge}d</div>;
     }
     
-    // В остальных случаях выводим как есть
     return <div className={getUpdateStyle('tokenAge')}>{tokenAge}</div>;
   };
 
-  // Объединяем данные из props и WebSocket
   const displayData = useMemo(() => {
     if (wsData) {
-      // Если есть данные с WebSocket, используем их, но сохраняем метаданные
       return {
         ...trackedData,
         ...wsData,
@@ -317,23 +288,19 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
     return trackedData;
   }, [wsData, trackedData]);
 
-  // Добавляем useEffect для локального обновления данных
   useEffect(() => {
     if (data?._updateId) {
       console.log(`[CryptoCard] Обновление карточки ${data.id}`);
     }
   }, [data]);
 
-  // Рендеринг бейджа с изменением цены в более выразительном виде
   const renderPriceChangeBadge = () => {
     const { isUp, value, ratioValue } = getPriceChangeInfo;
     
-    // Определяем классы в зависимости от направления изменения
     const colorClasses = isUp
       ? "text-green-500 border-green-500/20 bg-green-500/10"
       : "text-red-500 border-red-500/20 bg-red-500/10";
     
-    // Определяем интенсивность изменения для более выразительного эффекта
     const intensityClass = Math.abs(ratioValue - 1) > 0.2 
       ? (isUp ? "border-green-500/40 bg-green-500/20" : "border-red-500/40 bg-red-500/20")
       : "";

@@ -4,7 +4,6 @@ import { createRef } from 'react';
 import BigNumber from 'bignumber.js';
 import * as QRCode from 'qrcode';
 
-// Создаём пару ключей для reference
 const keypair = Keypair.generate();
 
 /**
@@ -22,26 +21,19 @@ export function generateSolanaPayLink(
   message = 'Payment for premium subscription'
 ): string {
   try {
-    // Проверка валидности адреса
     if (!destinationAddress || destinationAddress.trim() === '') {
       console.warn('Empty destination address');
-      // Тестовый адрес для демонстрации
       destinationAddress = 'Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr';
     }
     
-    // Преобразуем строку адреса в PublicKey
     const recipient = new PublicKey(destinationAddress);
     
-    // Преобразуем SOL в BigNumber
     const amount = new BigNumber(amountSOL);
     
-    // Создаём reference для отслеживания транзакции
     const reference = keypair.publicKey;
     
-    // Опциональное примечание для транзакции
     const memo = 'WhalesTrace#Sub';
 
-    // Создаём URL для оплаты
     const url = encodeURL({ 
       recipient, 
       amount, 
@@ -51,7 +43,6 @@ export function generateSolanaPayLink(
       memo 
     });
     
-    // Выводим URL для отладки
     console.log('Solana Pay URL:', url.toString());
     
     return url.toString();
@@ -75,10 +66,8 @@ export function createSolanaPayQR(
     const paymentLink = generateSolanaPayLink(destinationAddress, amountSOL);
     if (!paymentLink) return null;
     
-    // Создаём QR-код с настройками для хорошей читаемости
     const qrCode = createQR(paymentLink, 512, 'white', 'black');
     
-    // Создаём ref для дальнейшего использования в компонентах
     const qrRef = createRef<HTMLDivElement>();
     
     return { qrCode, qrRef };
@@ -93,19 +82,16 @@ export async function createSolanaPayQRImage(
   amountSOL: number
 ): Promise<{ imageUrl: string, paymentUrl: string }> {
   try {
-    // Проверка валидности адреса
     if (!destinationAddress || destinationAddress.trim() === '') {
       console.error('Empty destination address for QR code generation');
       throw new Error('Invalid wallet address');
     }
     
-    // Проверка валидности суммы
     if (isNaN(amountSOL) || amountSOL <= 0) {
       console.error('Invalid amount for QR code generation:', amountSOL);
       throw new Error('Invalid payment amount');
     }
     
-    // Генерация ссылки для оплаты
     const paymentUrl = generateSolanaPayLink(destinationAddress, amountSOL);
     if (!paymentUrl) {
       console.error('Failed to generate payment URL');
@@ -114,9 +100,8 @@ export async function createSolanaPayQRImage(
     
     console.log('Generating QR code for URL:', paymentUrl);
     
-    // Создаем QR код как data URL с улучшенными настройками
     const imageUrl = await QRCode.toDataURL(paymentUrl, {
-      errorCorrectionLevel: 'H', // Высший уровень коррекции ошибок
+      errorCorrectionLevel: 'H', 
       margin: 2,
       width: 512,
       color: {

@@ -51,7 +51,7 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     deepLink: null,
   });
 
-  // Загрузка начального состояния из localStorage
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedWallet = localStorage.getItem(STORAGE_KEYS.WALLET);
@@ -65,7 +65,7 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     }
   }, []);
 
-  // Проверка наличия Phantom в браузере
+
   const getProvider = useCallback(() => {
     if ('phantom' in window) {
       const provider = (window as unknown as PhantomWindow).phantom?.solana;
@@ -77,7 +77,6 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     return null;
   }, []);
 
-  // Проверка мобильного устройства
   const checkMobileDevice = useCallback(() => {
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
       navigator.userAgent
@@ -86,18 +85,14 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     return isMobile;
   }, []);
 
-  // Обновляем функцию createMobileDeepLink
   const createMobileDeepLink = useCallback(() => {
-    // Создаем keypair
     const keypair = nacl.box.keyPair();
     
-    // Сохраняем только то, что нужно
     localStorage.setItem('dapp_keypair', JSON.stringify({
       publicKey: bs58.encode(keypair.publicKey),
       secretKey: bs58.encode(keypair.secretKey)
     }));
 
-    // Формируем параметры для deep link
     return `https://phantom.app/ul/v1/connect?${new URLSearchParams({
       dapp_encryption_public_key: bs58.encode(keypair.publicKey),
       redirect_url: window.location.href,
@@ -106,20 +101,16 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     }).toString()}`;
   }, []);
 
-  // Подключение к кошельку
   const connect = useCallback(async () => {
     try {
       setState((prev) => ({ ...prev, isConnecting: true }));
 
       if (state.isMobileDevice) {
-        // Генерируем только публичный ключ для мобильной версии
         const keypair = nacl.box.keyPair();
         const encodedPublicKey = bs58.encode(keypair.publicKey);
         
-        // Сохраняем только публичный ключ
         localStorage.setItem('dapp_public_key', encodedPublicKey);
 
-        // Формируем deep link
         const params = new URLSearchParams({
           dapp_encryption_public_key: encodedPublicKey,
           redirect_url: window.location.href,
@@ -136,17 +127,14 @@ export function usePhantomWallet(): PhantomMobileWalletState {
         throw new Error('Phantom wallet not installed');
       }
 
-      // Подключаемся к кошельку
       const resp = await provider.connect();
       if (!resp) return;
       const walletAddress = resp.publicKey.toString();
 
       try {
-        // Формируем сообщение для подписи
         const timestamp = Date.now();
         const message = new TextEncoder().encode(`Signing in to Trace with wallet: ${walletAddress} TS: ${timestamp}`);
       
-        // Подписываем сообщение
         const signedMessage = await provider.signMessage(message, 'utf8');
         const signature = bs58.encode(signedMessage.signature);
 
@@ -175,7 +163,6 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     }
   }, [getProvider, state.isMobileDevice]);
 
-  // Сброс состояния кошелька
   const resetWalletState = useCallback(() => {
     setState((prev) => ({
       ...prev,
@@ -186,7 +173,6 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     localStorage.removeItem(STORAGE_KEYS.WALLET);
   }, []);
 
-  // Отключение от кошелька
   const disconnect = useCallback(async () => {
     try {
       const provider = getProvider();
@@ -200,7 +186,6 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     }
   }, [getProvider, resetWalletState]);
 
-  // Подписание сообщения
   const signMessage = useCallback(
     async (message: string): Promise<string> => {
       try {
@@ -219,7 +204,6 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     [getProvider, state.publicKey]
   );
 
-  // Обработка возврата от Phantom
   const handleReturnFromPhantom = useCallback(async () => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -232,7 +216,6 @@ export function usePhantomWallet(): PhantomMobileWalletState {
         return null;
       }
 
-      // Получаем сохраненный keypair
       const savedData = localStorage.getItem('dapp_keypair');
       if (!savedData) {
         console.log('No saved keypair found');
@@ -245,7 +228,6 @@ export function usePhantomWallet(): PhantomMobileWalletState {
         return null;
       }
 
-      // Расшифровываем данные
       try {
         const sharedSecret = nacl.box.before(
           bs58.decode(phantomKey),
@@ -265,7 +247,6 @@ export function usePhantomWallet(): PhantomMobileWalletState {
         const decoded = JSON.parse(new TextDecoder().decode(decryptedData));
         const walletPublicKey = decoded.public_key;
 
-        // Обновляем состояние
         setState(prev => ({
           ...prev,
           wallet: walletPublicKey,
@@ -273,11 +254,9 @@ export function usePhantomWallet(): PhantomMobileWalletState {
           isConnecting: false
         }));
 
-        // Сохраняем подключение
         localStorage.setItem(STORAGE_KEYS.WALLET, walletPublicKey);
         localStorage.removeItem('dapp_keypair'); // Очищаем временные данные
 
-        // Очищаем URL
         window.history.replaceState({}, '', window.location.pathname);
 
         return {
@@ -296,7 +275,6 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     }
   }, []);
 
-  // Эффект для обработки возврата от Phantom
   useEffect(() => {
     if (window.location.search.includes('phantom_encryption_public_key')) {
       console.log('Detected Phantom redirect, processing...');
@@ -306,7 +284,6 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     }
   }, [handleReturnFromPhantom]);
 
-  // Подписка на события Phantom
   useEffect(() => {
     const provider = getProvider();
     if (provider) {
@@ -330,7 +307,6 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     }
   }, [getProvider, resetWalletState]);
 
-  // Инициализация проверки устройства
   useEffect(() => {
     checkMobileDevice();
   }, [checkMobileDevice]);

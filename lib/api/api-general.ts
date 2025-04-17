@@ -12,7 +12,7 @@ import {
 import { decodeJWT, logDecodedJWT } from "@/lib/utils";
 import axios from 'axios';
 
-// Интерфейсы для API ответов
+
 interface VerifyApiResponse {
   success: boolean;
   status: boolean;
@@ -26,9 +26,7 @@ interface AuthVerifyResponse {
   token: string;
 }
 
-/**
- * Класс для работы с API
- */
+
 class ApiGeneralService {
   private static instance: ApiGeneralService;
   private ws: WebSocket | null = null;
@@ -63,7 +61,7 @@ class ApiGeneralService {
     console.log("Верификация кошелька:", wallet, "с подписью:", signature, "timestamp:", timestamp);
 
     try {
-      // Специальная обработка для мобильной подписи
+
       if (signature === 'mobile_signature') {
         console.log('Обнаружена мобильная подпись, используем тестовые данные');
         const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjcmVhdGVkQXQiOjE3NDQyOTcxNTMsImV4cCI6MTc0NDM4MzcyMywiaWF0IjoxNzQ0Mjk3MzIzLCJpZCI6MywibGlua2VkV2FsbGV0IjoiMnl6RUQzS2FXTDY1WUJxMlVTd0dIV2JkUE5QM2JxNlRRN1JBaUhic2JaQ2ciLCJzdWJFeHBBdCI6MCwidG9wdXBXYWxsZXQiOiIzekU4cUE4eFN1Nk5QbzR5V0trN3dWYXdWc3Nlb3hZS3VvTld1VlZLc1lxbiJ9.HeH-csxMUSyqV_6b_2HW5hfH1UAxFYTuTQ4_0z9E2Yw";
@@ -108,7 +106,7 @@ class ApiGeneralService {
             wallet: wallet
           };
           
-          // Выполняем POST запрос с axios
+          //  POST 
           console.log('Отправка запроса:', dataPost);
           
           const response = await axios.post(`${API_HOST}/api/verify`, dataPost, {
@@ -118,18 +116,18 @@ class ApiGeneralService {
             }
           });
           
-          // Проверяем статус ответа
+          //  статус 
           console.log('Получен ответ с статусом:', response.status);
           
-          // Получаем данные из response.data
+         
           const apiResponse = response.data;
           console.log('Данные ответа:', apiResponse);
           
-          // Проверяем структуру ответа
+
           if ('token' in apiResponse) {
             const authResponse = apiResponse as AuthVerifyResponse;
             
-            // Приводим к стандартному формату
+
             data = {
               success: authResponse.success,
               status: authResponse.status,
@@ -166,16 +164,16 @@ class ApiGeneralService {
         }
       }
       
-      // Проверяем наличие токена
+
       if (!data.token) {
         console.error('API вернул пустой токен');
         throw new Error('Получен пустой токен аутентификации');
       }
       
-      // Сохраняем токен для будущих запросов
+
       this.accessToken = data.token;
       
-      // Обработка успешного ответа
+
       if (data.status === true) {
         const decodedPayload = logDecodedJWT(data.token);
         
@@ -499,7 +497,7 @@ class ApiGeneralService {
               console.error("Ошибка преобразования сигнала:", conversionError);
             }
           } 
-          // Обработка обновления с market и holdings
+
           else if (message.market || message.holdings || message.trades) {
             try {
               const updates = this.convertToCardUpdates(message);
@@ -508,7 +506,7 @@ class ApiGeneralService {
               console.error("Ошибка обновления сигнала:", updateError);
             }
           }
-          // Может это пустое сообщение, просто с token
+
           else {
             console.log("Получено сообщение только с token, игнорируем:", message.token);
           }
@@ -523,28 +521,21 @@ class ApiGeneralService {
     }
   }
   
-  /**
-   * Обработчик ошибок
-   */
+
   private handleError(event: Event): void {
     console.error("Получена ошибка WebSocket");
     
-    // Раз получили ошибку, сбрасываем флаг успешности подключения
     this.connectionEstablished = false;
     
-    // Проверяем, готовы ли мы использовать мок-данные
     if (process.env.NODE_ENV === 'development') {
       console.log('Будем использовать мок-данные, так как получена ошибка WebSocket');
       this.notifyError(new Error("Ошибка соединения - используем мок-данные"));
     }
     
-    // Сбрасываем флаг, чтобы можно было попробовать еще раз
     this.attemptingReconnect = false;
   }
 
-  /**
-   * Обработчик закрытия соединения
-   */
+
   private handleClose(event: CloseEvent): void {
     const codeMap: Record<number, string> = {
       1000: "Нормальное закрытие",
@@ -575,7 +566,6 @@ class ApiGeneralService {
       this.connectionTimeoutId = null;
     }
   
-    // Если это было нормальное закрытие, или повторяющаяся ошибка политики, не переподключаемся
     if (event.code === 1000 || event.code === 1008) {
       console.log("Не переподключаемся - закрытие было ожидаемым или из-за ошибки политики");
       return;
@@ -588,13 +578,10 @@ class ApiGeneralService {
       return;
     }
     
-    // Если не можем использовать мок-данные, пробуем переподключиться
+
     this.reconnect();
   }
   
-  /**
-   * Попытка переподключения
-   */
   private reconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error("Превышено максимальное количество попыток переподключения");
@@ -700,44 +687,31 @@ class ApiGeneralService {
     this.newSignalCallbacks.push(callback);
   }
   
-  /**
-   * Регистрация обработчика обновлений сигналов
-   */
+
   onUpdateSignal(callback: (token: string, updates: Partial<CryptoCard>) => void): void {
     this.updateSignalCallbacks.push(callback);
   }
   
-  /**
-   * Регистрация обработчика ошибок
-   */
+
   onError(callback: (error: any) => void): void {
     this.errorCallbacks.push(callback);
   }
   
-  /**
-   * Проверка состояния подключения
-   */
+
   isConnected(): boolean {
     return this.connected;
   }
 
-  /**
-   * Преобразование сигнала в формат карточки
-   */
+
   private convertSignalToCard(signal: NewSignalMessage): CryptoCard {
-    // Проверка и нормализация URL изображения
     let imageUrl = signal.logo || '';
-    
-    // Проверка является ли это ссылкой на gmgn.ai
     if (imageUrl.includes('gmgn.ai/external-res')) {
-      // Использование прокси для изображений в режиме разработки
+
       imageUrl = `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
     } else if (imageUrl && !imageUrl.startsWith('http')) {
-      // Добавление протокола, если отсутствует
       imageUrl = `https://${imageUrl}`;
     }
     
-    // Проверяем, что все необходимые поля существуют
     const marketCap = signal.market && signal.market.circulatingSupply && signal.market.price 
       ? `$${Math.round(signal.market.circulatingSupply * signal.market.price)}K`
       : "N/A";
@@ -793,13 +767,11 @@ class ApiGeneralService {
     };
   }
 
-  /**
-   * Преобразование обновления в формат обновления карточки
-   */
+
   private convertToCardUpdates(update: UpdateSignalMessage): Partial<CryptoCard> {
     const result: Partial<CryptoCard> = {};
     
-    // Обновляем рыночные данные, если они есть
+
     if (update.market) {
       if (update.market.price !== undefined) {
         // Если есть цена, можно обновить marketCap
@@ -807,12 +779,12 @@ class ApiGeneralService {
           result.marketCap = `$${Math.round(update.market.circulatingSupply * update.market.price)}`;
         }
     
-        // Можно добавить изменение цены, если есть предыдущая цена
+
         result.priceChange = "×1.1"; // Заглушка, в реальном приложении нужно вычислять
       }
     }
 
-    // Обновляем холдинги, если они есть
+
     if (update.holdings) {
       if (update.holdings.top10 !== undefined) {
         result.top10 = `${Math.round(update.holdings.top10)}%`;
@@ -866,13 +838,13 @@ class ApiGeneralService {
   }
 }
 
-// Создаем и экспортируем экземпляр сервиса
+
 export const apiGeneral = ApiGeneralService.getInstance();
 
-// Экспортируем для совместимости
+
 export const webSocketClient = apiGeneral;
 
-// Экспортируем функции для совместимости со старым кодом
+
 export async function verifyWallet(signature: string, wallet: string, timestamp?: number): Promise<VerifyResponse> {
   return apiGeneral.verifyWallet(signature, wallet, timestamp);
 }

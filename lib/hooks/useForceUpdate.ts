@@ -8,7 +8,7 @@ import { generateUpdateId } from '../utils';
 export function useForceUpdate(): [string, () => void] {
   const [updateId, setUpdateId] = useState(generateUpdateId());
   
-  // Функция для принудительного обновления компонента
+
   const forceUpdate = useCallback(() => {
     setUpdateId(generateUpdateId());
   }, []);
@@ -28,13 +28,11 @@ export function useDebounce<T extends (...args: any[]) => any>(
 ): T {
   const timeoutRef = useRef<number | null>(null);
   const fnRef = useRef(fn);
-  
-  // Обновляем ссылку на функцию при её изменении
+
   useEffect(() => {
     fnRef.current = fn;
   }, [fn]);
   
-  // Очищаем таймаут при размонтировании
   useEffect(() => {
     return () => {
       if (timeoutRef.current !== null) {
@@ -82,11 +80,8 @@ export function useTrackedData<T>(data: T | null): [T & { _updateId: string } | 
     return [null, forceUpdate];
   }
   
-  // Создаем копию данных с добавлением идентификатора обновления
-  // Используем ref для хранения, чтобы избежать циклических обновлений
   const trackedData = { ...data, _updateId: trackId } as T & { _updateId: string };
   
-  // Обновляем данные в ref
   dataRef.current = { data, trackId };
   
   return [trackedData, forceUpdate];

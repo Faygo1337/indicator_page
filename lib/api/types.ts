@@ -24,110 +24,85 @@ export interface CryptoCard {
     website?: string
   }
 }
-/**
- * API Configuration and Documentation
- */
+
 
 export const API_HOST = 'https://whales.trace.foundation';
 
-/**
- * WebSocket Configuration
- * Format: wss://{hostUrl}/ws
- * Headers required:
- * - Authorization: Bearer {{accessToken}}
- */
+
 export const WS_ENDPOINT = 'wss://whales.trace.foundation/api/stream';
 
-/**
- * API Endpoints
- */
+
 export const API_ENDPOINTS = {
   verify: `${API_HOST}/api/verify`,
   payment: `${API_HOST}/api/payment`,
 } as const;
 
-/**
- * JWT Token Payload Interface
- */
+
 export interface JWTPayload {
-  createdAt: number;      // Время создания токена
-  exp: number;           // Время истечения токена
-  iat: number;          // Время выпуска токена
-  id: number;           // ID пользователя
-  linkedWallet: string; // Привязанный кошелек
-  subExpAt: number;     // Время истечения подписки
-  topupWallet: string;  // Кошелек для пополнения
+  createdAt: number;      
+  exp: number;           
+  iat: number;          
+  id: number;          
+  linkedWallet: string;
+  subExpAt: number;    
+  topupWallet: string; 
 }
 
 /**
  * Payment Response Interface
  */
 export interface PaymentResponse {
-  accessToken: string;         // Токен доступа для сессии
-  expireAt: string;           // Время истечения токена
-  hasSubscription: boolean;    // Статус подписки
-  success: boolean;           // Статус операции
+  accessToken: string;         
+  expireAt: string;           
+  hasSubscription: boolean;   
+  success: boolean;          
 }
 
-/**
- * WebSocket Message Interfaces
- */
 
 export interface MarketData {
-  circulatingSupply: number; // Циркулирующее предложение
-  price: number;            // Цена
+  circulatingSupply: number; 
+  price: number;           
 }
 
 export interface HoldingsData {
-  top10: number;          // Топ 10 холдеров (%)
-  devHolds: number;       // Холды разработчиков (%)
-  insidersHolds: number;  // Инсайдерские холды (%)
-  first70: number;        // Первые 70 холдеров (%)
+  top10: number;          
+  devHolds: number;       
+  insidersHolds: number;  
+  first70: number;        
 }
 
 export interface SocialLinks {
-  x?: string;            // Twitter
-  web?: string;          // Веб-сайт
-  tg?: string;          // Telegram
+  x?: string;            
+  web?: string;          
+  tg?: string;          
 }
 
 export interface Trade {
-  signer: string;     // Адрес подписавшего
-  amtSol: number;    // Количество SOL
-  timestamp: number;   // Временная метка
+  signer: string;    
+  amtSol: number;    
+  timestamp: number;   
 }
 
-/**
- * New Signal Message Interface
- * Полное сообщение о новом токене
- */
+
 export interface NewSignalMessage {
-  token: string;           // Адрес токена
-  name: string;           // Имя токена
-  symbol: string;         // Символ токена
-  logo: string;          // URL логотипа
-  tokenCreatedAt: number; // Время создания токена
-  createdAt: number;      // Время создания сигнала
+  token: string;           
+  name: string;          
+  symbol: string;        
+  logo: string;          
+  tokenCreatedAt: number;
+  createdAt: number;     
   market: MarketData;
   holdings: HoldingsData;
   socials?: SocialLinks;
   trades: Trade[];
 }
 
-/**
- * Update Signal Message Interface
- * Частичное обновление данных токена
- */
 export interface UpdateSignalMessage {
-  token: string;          // Обязательное поле - идентификатор
+  token: string;         
   market?: Partial<MarketData>;
   holdings?: Partial<HoldingsData>;
   trades?: Trade[];
 }
-
-/**
- * API Request Examples
- */
 
 export const API_EXAMPLES = {
   newSignal: {
@@ -151,24 +126,6 @@ export const API_EXAMPLES = {
     }
   }
 } as const;
-
-/**
- * Authentication Flow:
- * 1. Подключение кошелька:
- *    - Отправляется запрос на подписание сообщения
- *    - После подписания получаем JWT токен
- *    - JWT токен содержит информацию о пользователе и подписке
- * 
- * 2. При успешной оплате:
- *    - Получаем PaymentResponse с accessToken
- *    - Токен сохраняется на время сессии
- *    - Используется для всех последующих запросов
- *    - Проверяется hasSubscription для доступа к функционалу
- * 
- * 3. WebSocket соединение:
- *    - Устанавливается после успешной аутентификации
- *    - Использует JWT токен для авторизации
- */
 
 export interface VerifyResponse {
   token: string;

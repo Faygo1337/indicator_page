@@ -6,30 +6,29 @@ import { CryptoCard as CryptoCardType } from '@/lib/api/types';
 
 export const dynamic = 'force-dynamic';
 
-// Обновляем типы для контекста
 interface WebSocketContextType {
   status: 'connecting' | 'connected' | 'disconnected' | 'error';
   cards: CryptoCardType[];
   error: string | null;
   reconnect: () => void;
   disconnect: () => void;
-  updateCard: (token: string, updates: Partial<CryptoCardType>) => void; // Новая функция
+  updateCard: (token: string, updates: Partial<CryptoCardType>) => void; 
 }
 
-// Создаем контекст с начальными значениями
+
 const WebSocketContext = createContext<WebSocketContextType>({
   status: 'disconnected',
   cards: [],
   error: null,
   reconnect: () => {},
   disconnect: () => {},
-  updateCard: () => {}, // Добавляем пустую функцию
+  updateCard: () => {}, 
 });
 
-// Хук для использования WebSocket контекста
+
 export const useWebSocket = () => useContext(WebSocketContext);
 
-// Провайдер для WebSocket
+
 interface WebSocketProviderProps {
   children: ReactNode;
   url?: string;
@@ -41,10 +40,10 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 }) => {
   console.log('[WebSocketContext] Инициализация провайдера');
   
-  // Используем хук для получения данных
+
   const [status, cards, error, { reconnect, disconnect }, updateCard] = useWebSocketData(url);
   
-  // Оптимизируем обновление с использованием useCallback и useMemo
+
   const contextValue = useMemo(() => ({
     status,
     cards,
@@ -54,8 +53,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     updateCard,
   }), [status, cards, error, reconnect, disconnect, updateCard]);
   
-  // Логируем состояние при изменении, но используем для этого ref
-  // чтобы не вызывать лишние ререндеры
+  
   const prevCardsCountRef = useRef(cards.length);
   useEffect(() => {
     const currentCount = cards.length;

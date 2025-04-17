@@ -12,13 +12,12 @@ type WebSocketControls = {
   disconnect: () => void;
 };
 
-// Добавляем тип для функций обновления
 export function useWebSocketData(url: string): [
   WebSocketStatus, 
   CryptoCard[], 
   string | null, 
   WebSocketControls,
-  (token: string, updates: Partial<CryptoCard>) => void // Новая функция для обновления
+  (token: string, updates: Partial<CryptoCard>) => void 
 ] {
   const [status, setStatus] = useState<WebSocketStatus>('disconnected');
   const [cards, setCards] = useState<CryptoCard[]>([]);
@@ -30,7 +29,6 @@ export function useWebSocketData(url: string): [
     setCards(prevCards => {
       return prevCards.map(card => {
         if (card.id === token) {
-          // Обновляем только определенные поля
           return { ...card, ...updates };
         }
         return card;
@@ -38,43 +36,31 @@ export function useWebSocketData(url: string): [
     });
   }, []);
 
-  // Обработчик для новых карточек
   const handleNewSignal = useCallback((data: CryptoCard) => {
     setCards(prevCards => {
-      // Проверяем, есть ли уже такая карточка
       const cardExists = prevCards.some(card => card.id === data.id);
       if (cardExists) {
-        // Если карточка существует, обновляем её
         return prevCards.map(card => card.id === data.id ? { ...card, ...data } : card);
       } else {
-        // Если новая, добавляем в начало массива
         return [data, ...prevCards];
       }
     });
     
-    // Обновляем страницу для получения новых данных
     router.refresh();
   }, [router]);
 
-  // Обработчик для обновлений карточек
   const handleUpdateSignal = useCallback((token: string, updates: Partial<CryptoCard>) => {
     console.log(`[WebSocket] Получено обновление для ${token}:`, updates);
     
-    // Используем функциональное обновление, чтобы гарантировать актуальность данных
     setCards(prevCards => {
-      // Находим карточку по токену
       const cardIndex = prevCards.findIndex(card => card.id === token);
       if (cardIndex === -1) return prevCards;
       
-      // Создаем копию массива и обновляем нужную карточку
       const newCards = [...prevCards];
       
-      // Для оптимизации производительности: 
-      // если карточка уже имеет все те же значения, что и в обновлении, не меняем её
       const currentCard = prevCards[cardIndex];
       let hasRealChanges = false;
       
-      // Глубокое сравнение только значимых полей
       if (updates.marketCap && updates.marketCap !== currentCard.marketCap) hasRealChanges = true;
       if (updates.top10 && updates.top10 !== currentCard.top10) hasRealChanges = true;
       if (updates.devWalletHold && updates.devWalletHold !== currentCard.devWalletHold) hasRealChanges = true;
@@ -82,7 +68,6 @@ export function useWebSocketData(url: string): [
       if (updates.insiders && updates.insiders !== currentCard.insiders) hasRealChanges = true;
       if (updates.priceChange && updates.priceChange !== currentCard.priceChange) hasRealChanges = true;
       
-      // Метаданные для отслеживания обновлений
       const updatedCard = {
         ...currentCard,
         ...updates,
@@ -90,7 +75,6 @@ export function useWebSocketData(url: string): [
         _updateId: `update-${Date.now()}`
       };
       
-      // Обновляем карточку только если есть реальные изменения 
       if (hasRealChanges) {
         newCards[cardIndex] = updatedCard;
         return newCards;
@@ -100,21 +84,18 @@ export function useWebSocketData(url: string): [
     });
   }, []);
 
-  // Обработчик ошибок
   const handleError = useCallback((error: any) => {
     console.error('[WebSocket] Ошибка:', error);
     setError(error?.message || 'Ошибка соединения с WebSocket');
     setStatus('error');
   }, []);
 
-  // Функция для переподключения
   const reconnect = useCallback(() => {
     if (status === 'connecting') return;
     
     setStatus('connecting');
     setError(null);
     
-    // Используем глобальный экземпляр webSocketClient
     webSocketClient.connect('')
       .then(() => {
         setStatus('connected');
@@ -126,23 +107,18 @@ export function useWebSocketData(url: string): [
       });
   }, [status]);
 
-  // Функция для отключения
   const disconnect = useCallback(() => {
     webSocketClient.disconnect();
     setStatus('disconnected');
   }, []);
 
-  // Эффект для инициализации WebSocket
   useEffect(() => {
-    // Устанавливаем начальный статус
     setStatus('connecting');
     
-    // Подписываемся на события WebSocket
     webSocketClient.onNewSignal(handleNewSignal);
     webSocketClient.onUpdateSignal(handleUpdateSignal);
     webSocketClient.onError(handleError);
     
-    // Подключаемся к WebSocket
     webSocketClient.connect('')
       .then(() => {
         setStatus('connected');
@@ -153,7 +129,6 @@ export function useWebSocketData(url: string): [
         setStatus('error');
       });
     
-    // Отписываемся при размонтировании
     return () => {
       webSocketClient.disconnect();
     };

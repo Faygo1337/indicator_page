@@ -40,13 +40,12 @@ export function Header({
   const [pageDialogOpen, setPageDialogOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
-  // Проверка ширины экрана
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 1024);
     };
 
-    handleResize(); // Установить начальное значение
+    handleResize(); 
     window.addEventListener("resize", handleResize);
 
     return () => {

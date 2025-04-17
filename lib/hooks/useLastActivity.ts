@@ -7,15 +7,14 @@ import { useState, useEffect } from 'react';
 export function useLastActivity(): [string | null, () => void] {
   const [lastActivity, setLastActivity] = useState<string | null>(null);
   
-  // Функция для обновления времени последней активности
   const updateLastActivity = () => {
     const now = new Date();
-    // Форматируем время в читаемый формат
+
     const formattedTime = now.toLocaleTimeString();
     setLastActivity(formattedTime);
   };
   
-  // При первом монтировании компонента устанавливаем время
+
   useEffect(() => {
     updateLastActivity();
   }, []);
