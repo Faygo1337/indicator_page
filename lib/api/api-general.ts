@@ -183,7 +183,6 @@ class ApiGeneralService {
         };
       }
       
-      // Для случая, когда статус не true - возвращаем тестовые данные
       console.warn('API вернул status: false, используем тестовые данные');
       
       return {
