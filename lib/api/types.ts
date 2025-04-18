@@ -10,7 +10,7 @@ export interface CryptoCard {
   first70BuyersHold: string
   insiders: string
   whales: {
-    count: number
+    count: string | number
     amount: string
   }[]
   noMint: boolean
@@ -79,7 +79,7 @@ export interface SocialLinks {
 
 export interface Trade {
   signer: string;    
-  amtSol: number;    
+  amountSol: number;    
   timestamp: number;   
 }
 

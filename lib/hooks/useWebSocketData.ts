@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { CryptoCard } from '@/lib/api/types';
+import { CryptoCard, MarketData, UpdateSignalMessage } from '@/lib/api/types';
 import { useRouter } from 'next/navigation';
 import { webSocketClient } from '@/lib/api/api-general';
+import { formatMarketCap } from '@/lib/utils';
 
 type WebSocketStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
@@ -12,15 +13,21 @@ type WebSocketControls = {
   disconnect: () => void;
 };
 
+export type ExtendedCryptoCard = CryptoCard & {
+  _lastUpdated?: number;
+  _updateId?: string;
+  _receivedAt?: number;
+};
+
 export function useWebSocketData(url: string): [
   WebSocketStatus, 
-  CryptoCard[], 
+  ExtendedCryptoCard[], 
   string | null, 
   WebSocketControls,
   (token: string, updates: Partial<CryptoCard>) => void 
 ] {
   const [status, setStatus] = useState<WebSocketStatus>('disconnected');
-  const [cards, setCards] = useState<CryptoCard[]>([]);
+  const [cards, setCards] = useState<ExtendedCryptoCard[]>([]);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   
@@ -63,17 +70,24 @@ export function useWebSocketData(url: string): [
       if (cardIndex === -1) return prevCards;
       
       const newCards = [...prevCards];
-      
-      const currentCard = prevCards[cardIndex];
+      const currentCard = { ...prevCards[cardIndex] };
       let hasRealChanges = false;
       
-      if (updates.marketCap && updates.marketCap !== currentCard.marketCap) hasRealChanges = true;
-      if (updates.top10 && updates.top10 !== currentCard.top10) hasRealChanges = true;
-      if (updates.devWalletHold && updates.devWalletHold !== currentCard.devWalletHold) hasRealChanges = true;
-      if (updates.first70BuyersHold && updates.first70BuyersHold !== currentCard.first70BuyersHold) hasRealChanges = true;
-      if (updates.insiders && updates.insiders !== currentCard.insiders) hasRealChanges = true;
-      if (updates.priceChange && updates.priceChange !== currentCard.priceChange) hasRealChanges = true;
+      // Проверяем обновление как UpdateSignalMessage, которое может содержать данные о рынке
+      const updateData = updates as unknown as UpdateSignalMessage;
       
+      // Если есть данные рынка с ценой и circulatingSupply, рассчитываем marketCap
+      if (updateData.market?.price && currentCard.id) {
+        // Используем существующий circulatingSupply или получаем из обновления
+        const circulatingSupply = updateData.market.circulatingSupply;
+        if (circulatingSupply) {
+          const marketCapValue = updateData.market.price * circulatingSupply;
+          updates.marketCap = formatMarketCap(marketCapValue);
+          hasRealChanges = true;
+        }
+      }
+      
+      // Обновляем текущую карточку с новыми данными и вспомогательными полями
       const updatedCard = {
         ...currentCard,
         ...updates,
@@ -81,6 +95,14 @@ export function useWebSocketData(url: string): [
         _updateId: `update-${Date.now()}`
       };
       
+      // Проверяем, реально ли что-то изменилось
+      Object.entries(updates).forEach(([key, value]) => {
+        if (currentCard[key as keyof typeof currentCard] !== value) {
+          hasRealChanges = true;
+        }
+      });
+      
+      // Обновляем cards только если есть реальные изменения
       if (hasRealChanges) {
         newCards[cardIndex] = updatedCard;
         return newCards;

@@ -6,7 +6,7 @@ import { CryptoCard } from "@/components/crypto-card";
 import { PaymentModal } from "@/components/payment-modal";
 // import { mockCryptoCards, createNewCard } from "@/lib/mock-data";
 import { verifyWallet, checkPayment, webSocketClient } from "@/lib/api/api-general";
-import { isSubscriptionValid, formatWalletAddress, decodeJWT } from "@/lib/utils";
+import { isSubscriptionValid, formatWalletAddress, decodeJWT, logDecodedJWT, parseTokenAge } from "@/lib/utils";
 import { usePhantomWallet } from "@/lib/hooks/usePhantomWallet";
 import type { CryptoCard as CryptoCardType, JWTPayload, NewSignalMessage, UpdateSignalMessage } from "@/lib/api/types";
 import nacl from "tweetnacl";
@@ -304,9 +304,9 @@ export default function Home() {
               // Создаем новые данные о китах на основе трейдов
               currentCard.whales = updates.trades
                 .slice(0, 3)
-                .map((trade: { amtSol: number; signer: string; timestamp: number }) => ({
-                  count: Math.max(15, Math.floor(trade.amtSol * 100)),
-                  amount: `${trade.amtSol.toFixed(2)} SOL`
+                .map((trade: { amountSol: number; signer: string; timestamp: number }) => ({
+                  count: trade.signer, // Используем адрес кошелька
+                  amount: `${trade.amountSol.toFixed(2)} SOL`
                 }));
                 
               console.log('Обновлены киты:', currentCard.whales, 'для токена', token);
@@ -788,9 +788,11 @@ export default function Home() {
             ? skeletonCards
             : cards
                 .sort((a, b) => {
-                  const timeA = a._receivedAt || 0;
-                  const timeB = b._receivedAt || 0;
-                  return timeB - timeA;
+                  // Сортировка по возрасту токена (от новых к старым)
+                  const ageA = parseTokenAge(a.tokenAge);
+                  const ageB = parseTokenAge(b.tokenAge);
+                  // Меньший возраст - более новый токен
+                  return ageA - ageB;
                 })
                 // Ограничиваем отображение максимум MAX_CARDS (8) карточками
                 .slice(0, MAX_CARDS)

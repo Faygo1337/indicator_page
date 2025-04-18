@@ -34,6 +34,8 @@ import {
 import { useLastActivity } from '@/lib/hooks/useLastActivity';
 import { useWebSocket } from "@/lib/context/WebSocketContext";
 import { formatNumber, extractNumericValue, formatMarketCap } from "@/lib/utils";
+import { useSelector } from 'react-redux';
+import { RootState } from '@/lib/store/store';
 
 // Расширенный тип для поддержки метаданных обновления
 interface ExtendedCryptoCard extends CryptoCardType {
@@ -83,7 +85,7 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
   // Находим данные из WebSocket, соответствующие данной карточке
   const wsData = useMemo(() => {
     if (!data?.id || !cards || !cards.length) return null;
-    return cards.find(card => card.id === data.id);
+    return cards.find((card: ExtendedCryptoCard) => card.id === data.id);
   }, [cards, data?.id]);
   
   // Отслеживаем предыдущие значения для анимации
@@ -290,18 +292,12 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
     return <div className={getUpdateStyle('tokenAge')}>{tokenAge}</div>;
   };
 
-  const displayData = useMemo(() => {
-    if (wsData) {
-      return {
-        ...trackedData,
-        ...wsData,
-        _receivedAt: trackedData?._receivedAt || Date.now(),
-        _lastUpdated: Date.now(),
-        _updateId: trackedData?._updateId
-      };
-    }
-    return trackedData;
-  }, [wsData, trackedData]);
+  const cardData = useSelector((state: RootState) => 
+    data?.id ? state.cards.cards[data.id] : null
+  );
+
+  // Используем cardData вместо data для отображения
+  const displayData = cardData || data;
 
   useEffect(() => {
     if (data?._updateId) {
@@ -547,12 +543,41 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
                   className="w-auto p-3 bg-gray-900 border-gray-800 text-gray-200"
                 >
                   <div className="space-y-1">
-                    <h4 className="text-xs font-semibold">💸 Trades:</h4>
-                    {displayData?.whales && displayData.whales.map((whale, index) => (
-                      <p key={index} className="text-xs whitespace-nowrap">
-                        ├ {whale.count} {whale.amount}
-                      </p>
-                    ))}
+                    {/* <h4 className="text-xs font-semibold">💰 Последние покупки:</h4> */}
+                    {displayData?.whales && (() => {
+                      // Группировка и суммирование трейдов по кошельку
+                      const walletSums: {[key: string]: number} = {};
+                      
+                      displayData.whales.forEach(whale => {
+                        // Извлекаем адрес из строки суммы (предполагается формат "количество SOL")
+                        const amountStr = whale.amount.split(' ')[0];
+                        const amount = parseFloat(amountStr);
+                        
+                        // Используем адрес кошелька
+                        const wallet = typeof whale.count === 'string' ? whale.count : whale.count.toString();
+                        
+                        // Суммируем транзакции одного кошелька
+                        if (walletSums[wallet]) {
+                          walletSums[wallet] += amount;
+                        } else {
+                          walletSums[wallet] = amount;
+                        }
+                      });
+                      
+                      // Преобразуем суммы обратно в массив для отображения
+                      return Object.entries(walletSums).map(([wallet, sum], index) => {
+                        // Форматируем адрес кошелька (первые 4 + .. + последние 4)
+                        const formattedWallet = wallet.length > 8 
+                          ? `${wallet.substring(0, 4)}..${wallet.substring(wallet.length - 4)}`
+                          : wallet;
+                        
+                        return (
+                          <p key={index} className="text-xs whitespace-nowrap">
+                            <span className="text-amber-400">➤</span> {formattedWallet}: {sum.toFixed(2)} SOL
+                          </p>
+                        );
+                      });
+                    })()}
                   </div>
                 </HoverCardContent>
               </HoverCard>

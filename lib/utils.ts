@@ -201,3 +201,61 @@ export function formatMarketCap(value: number | string): string {
   
   return `$${cleanedValue}${suffix}`;
 }
+
+/**
+ * Преобразует строку возраста токена в количество секунд
+ * Поддерживаемые форматы: "10d", "5h 30m", "2d 5h", "30s"
+ * @param tokenAge строка с возрастом токена
+ * @returns количество секунд или 0, если формат некорректен
+ */
+export function parseTokenAge(tokenAge?: string): number {
+  if (!tokenAge || tokenAge === "N/A") return 0;
+  
+  // Количество секунд
+  let seconds = 0;
+  
+  // Проверяем формат "10d" (только дни)
+  const daysMatch = tokenAge.match(/^(\d+)d$/);
+  if (daysMatch) {
+    return parseInt(daysMatch[1]) * 86400; // 1 день = 86400 секунд
+  }
+  
+  // Проверяем формат "10" (предполагаем, что это дни)
+  const numericMatch = tokenAge.match(/^(\d+)$/);
+  if (numericMatch) {
+    return parseInt(numericMatch[1]) * 86400;
+  }
+  
+  // Проверяем формат "5h 30m" (часы и минуты)
+  const hoursMinutesMatch = tokenAge.match(/^(\d+)h\s+(\d+)m$/);
+  if (hoursMinutesMatch) {
+    const hours = parseInt(hoursMinutesMatch[1]);
+    const minutes = parseInt(hoursMinutesMatch[2]);
+    return hours * 3600 + minutes * 60;
+  }
+  
+  // Проверяем формат "2d 5h" (дни и часы)
+  const daysHoursMatch = tokenAge.match(/^(\d+)d\s+(\d+)h$/);
+  if (daysHoursMatch) {
+    const days = parseInt(daysHoursMatch[1]);
+    const hours = parseInt(daysHoursMatch[2]);
+    return days * 86400 + hours * 3600;
+  }
+  
+  // Если другой формат - пытаемся извлечь все числа и единицы измерения
+  const patterns = [
+    { regex: /(\d+)d/, multiplier: 86400 }, // дни
+    { regex: /(\d+)h/, multiplier: 3600 },  // часы
+    { regex: /(\d+)m/, multiplier: 60 },    // минуты
+    { regex: /(\d+)s/, multiplier: 1 }      // секунды
+  ];
+  
+  patterns.forEach(pattern => {
+    const match = tokenAge.match(pattern.regex);
+    if (match) {
+      seconds += parseInt(match[1]) * pattern.multiplier;
+    }
+  });
+  
+  return seconds;
+}
