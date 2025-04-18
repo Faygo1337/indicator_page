@@ -822,17 +822,17 @@ class ApiGeneralService {
     const diff = now - timestamp;
     
     if (diff < 60) {
-      return `${Math.floor(diff)}с`;
+      return `${Math.floor(diff)}s`;
     } else if (diff < 3600) {
-      return `${Math.floor(diff / 60)}м`;
+      return `${Math.floor(diff / 60)}m`;
     } else if (diff < 86400) {
       const hours = Math.floor(diff / 3600);
       const minutes = Math.floor((diff % 3600) / 60);
-      return `${hours}ч${minutes}м`;
+      return `${hours}h ${minutes}m`;
     } else {
       const days = Math.floor(diff / 86400);
       const hours = Math.floor((diff % 86400) / 3600);
-      return `${days}д${hours}ч`;
+      return `${days}d ${hours}h`;
     }
   }
 }

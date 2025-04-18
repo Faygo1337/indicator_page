@@ -57,7 +57,7 @@ export default function Home() {
 
   const [redirectPending, setRedirectPending] = useState<boolean>(false);
 
-  const MAX_CARDS = 16;
+  const MAX_CARDS = 8;
 
   // Получаем данные из WebSocket контекста
   const { cards: wsCards, status, error, reconnect } = useWebSocket();
@@ -417,6 +417,7 @@ export default function Home() {
 
     setCryptoCards((prevCards) => {
       const updatedCards = [newCardData, ...prevCards];
+      // Ограничиваем максимальное количество карточек до 8
       if (updatedCards.length > MAX_CARDS) {
         return updatedCards.slice(0, MAX_CARDS);
       }
@@ -791,6 +792,8 @@ export default function Home() {
                   const timeB = b._receivedAt || 0;
                   return timeB - timeA;
                 })
+                // Ограничиваем отображение максимум MAX_CARDS (8) карточками
+                .slice(0, MAX_CARDS)
                 .map((card) => (
                   <CryptoCard key={`${card.id}-${card._lastUpdated || 'initial'}`} data={card} />
               ))}

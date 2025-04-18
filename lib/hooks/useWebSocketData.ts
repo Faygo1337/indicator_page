@@ -24,6 +24,9 @@ export function useWebSocketData(url: string): [
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   
+  // Максимальное количество карточек
+  const MAX_CARDS = 8;
+  
   // Функция для обновления карточки
   const updateCard = useCallback((token: string, updates: Partial<CryptoCard>) => {
     setCards(prevCards => {
@@ -42,7 +45,10 @@ export function useWebSocketData(url: string): [
       if (cardExists) {
         return prevCards.map(card => card.id === data.id ? { ...card, ...data } : card);
       } else {
-        return [data, ...prevCards];
+        // Добавляем новую карточку в начало и ограничиваем общее количество до MAX_CARDS
+        const updatedCards = [data, ...prevCards];
+        // Если карточек стало больше MAX_CARDS, оставляем только первые MAX_CARDS
+        return updatedCards.slice(0, MAX_CARDS);
       }
     });
     

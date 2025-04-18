@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/hover-card";
 import { useLastActivity } from '@/lib/hooks/useLastActivity';
 import { useWebSocket } from "@/lib/context/WebSocketContext";
-import { formatNumber, extractNumericValue } from "@/lib/utils";
+import { formatNumber, extractNumericValue, formatMarketCap } from "@/lib/utils";
 
 // Расширенный тип для поддержки метаданных обновления
 interface ExtendedCryptoCard extends CryptoCardType {
@@ -233,7 +233,10 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
     field: string, 
     isPercent = false
   ) => {
-    const formatted = formatNumber(currentValue, { isPercent });
+    // Используем специальное форматирование для marketCap
+    const formatted = field === 'marketCap' 
+      ? formatMarketCap(currentValue)
+      : formatNumber(currentValue, { isPercent });
     
     if (animateFields[field] && prevData) {
       const prevValueRaw = (prevData as any)[field] || '0';
@@ -264,12 +267,24 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
       return <div>-</div>;
     }
     
+    // Поддержка формата с буквой 'd' на конце (например, 10d)
     if (/^\d+d$/.test(tokenAge)) {
       return <div className={getUpdateStyle('tokenAge')}>{tokenAge}</div>;
     }
     
+    // Поддержка формата чисел без буквы (например, 10)
     if (/^\d+$/.test(tokenAge)) {
       return <div className={getUpdateStyle('tokenAge')}>{tokenAge}d</div>;
+    }
+    
+    // Поддержка формата 'Nh Mm' (часы и минуты)
+    if (/^\d+h \d+m$/.test(tokenAge)) {
+      return <div className={getUpdateStyle('tokenAge')}>{tokenAge}</div>;
+    }
+    
+    // Поддержка формата 'Nd Nh' (дни и часы)
+    if (/^\d+d \d+h$/.test(tokenAge)) {
+      return <div className={getUpdateStyle('tokenAge')}>{tokenAge}</div>;
     }
     
     return <div className={getUpdateStyle('tokenAge')}>{tokenAge}</div>;
@@ -404,16 +419,21 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
                 )}
               </div>
               <div>
-                <h3 className="text-base font-semibold">
-                  {displayData?.name}
+                <p className="text-base font-semibold truncate max-w-[180px]">
+                  {displayData?.symbol}
                   {isConnected && (
-                    <span className="ml-2 inline-flex h-2 w-2 rounded-full bg-green-500"></span>
+                    <span className="ml-2 mb-0.5 inline-flex h-2 w-2 rounded-full bg-green-500"></span>
                   )}
-                </h3>
-                <p className="text-xs text-muted-foreground">{displayData?.symbol}</p>
+                </p>
+                <h3 className="text-xs text-muted-foreground">{displayData?.name?.length > 10 ? displayData?.name?.slice(0, 10) + '...' : displayData?.name}</h3>
               </div>
             </div>
 
+            <div className="flex items-center gap-2">
+              <div className="text-muted-foreground" style={{ fontSize: "0.55rem" }}>
+                {displayData?.id ? `${displayData.id.slice(0,4)}..${displayData.id.slice(-6)}` : ''}
+              </div>
+            
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -436,66 +456,70 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
               </Tooltip>
             </TooltipProvider>
           </div>
+          </div>
 
           {/* Overview - в виде таблицы */}
           <div style={{ marginTop: ".6rem" }}>
-            <h4 className="text-xs font-medium text-muted-foreground">
-              Overview
-            </h4>
-            <div
-              className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs"
-              style={{
-                border: "1px solid #2a2a2a",
-                padding: "1rem",
-                borderRadius: "0.5rem",
-              }}
-            >
-              <div className="flex items-center">
-                <span className="mr-1">💎</span>
-                <span className="text-muted-foreground">Market Cap:</span>
-              </div>
-              <div className="text-right">
-                {renderValueChange(displayData?.marketCap || '', 'marketCap')}
+            
+            <div className="grid grid-cols-3 gap-x-2 gap-y-2 text-xs">
+              <div className="flex flex-col items-center p-2 rounded-lg border border-green-800/40 bg-gray-900/30 backdrop-blur-sm">
+                <div className="text-center font-medium mb-1">
+                  {renderValueChange(displayData?.marketCap || '', 'marketCap')}
+                </div>
+                <div className="flex items-center text-gray-400 text-[10px]">
+                  <span className="mr-1 text-amber-500">💎</span>
+                  <span>Market Cap</span>
+                </div>
               </div>
 
-              <div className="flex items-center">
-                <span className="mr-1">⏳</span>
-                <span className="text-muted-foreground">Token Age:</span>
-              </div>
-              <div className="text-right">
-                {renderTokenAge(displayData?.tokenAge)}
-              </div>
-
-              <div className="flex items-center">
-                <span className="mr-1">💡</span>
-                <span className="text-muted-foreground">Top10:</span>
-              </div>
-              <div className="text-right">
-                {renderValueChange(displayData?.top10 || '', 'top10', true)}
+              <div className="flex flex-col items-center p-2 rounded-lg border border-green-800/40 bg-gray-900/30 backdrop-blur-sm">
+                <div className="text-center font-medium mb-1">
+                  {renderTokenAge(displayData?.tokenAge)}
+                </div>
+                <div className="flex items-center text-gray-400 text-[10px]">
+                  <span className="mr-1 text-amber-500">⏳</span>
+                  <span>Token Age</span>
+                </div>
               </div>
 
-              <div className="flex items-center">
-                <span className="mr-1">🧮</span>
-                <span className="text-muted-foreground">Dev Wallet:</span>
-              </div>
-              <div className="text-right">
-                {renderValueChange(displayData?.devWalletHold || '', 'devWalletHold', true)}
-              </div>
-
-              <div className="flex items-center">
-                <span className="mr-1">🧠</span>
-                <span className="text-muted-foreground">First 70 buyers:</span>
-              </div>
-              <div className="text-right">
-                {renderValueChange(displayData?.first70BuyersHold || '', 'first70BuyersHold', true)}
+              <div className="flex flex-col items-center p-2 rounded-lg border border-green-800/40 bg-gray-900/30 backdrop-blur-sm">
+                <div className="text-center font-medium mb-1">
+                  {renderValueChange(displayData?.top10 || '', 'top10', true)}
+                </div>
+                <div className="flex items-center text-gray-400 text-[10px]">
+                  <span className="mr-1 text-amber-500">💡</span>
+                  <span>Top10</span>
+                </div>
               </div>
 
-              <div className="flex items-center">
-                <span className="mr-1">🐀</span>
-                <span className="text-muted-foreground">Insiders:</span>
+              <div className="flex flex-col items-center p-2 rounded-lg border border-green-800/40 bg-gray-900/30 backdrop-blur-sm">
+                <div className="text-center font-medium mb-1">
+                  {renderValueChange(displayData?.devWalletHold || '', 'devWalletHold', true)}
+                </div>
+                <div className="flex items-center text-gray-400 text-[10px]">
+                  <span className="mr-1 text-amber-500">🧮</span>
+                  <span>Dev Wallet</span>
+                </div>
               </div>
-              <div className="text-right">
-                {renderValueChange(displayData?.insiders || '', 'insiders', true)}
+
+              <div className="flex flex-col items-center p-2 rounded-lg border border-green-800/40 bg-gray-900/30 backdrop-blur-sm">
+                <div className="text-center font-medium mb-1">
+                  {renderValueChange(displayData?.first70BuyersHold || '', 'first70BuyersHold', true)}
+                </div>
+                <div className="flex items-center text-gray-400 text-[10px]">
+                  <span className="mr-1 text-amber-500">🧠</span>
+                  <span>First 70</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center p-2 rounded-lg border border-green-800/40 bg-gray-900/30 backdrop-blur-sm">
+                <div className="text-center font-medium mb-1">
+                  {renderValueChange(displayData?.insiders || '', 'insiders', true)}
+                </div>
+                <div className="flex items-center text-gray-400 text-[10px]">
+                  <span className="mr-1 text-amber-500">🐀</span>
+                  <span>Insiders</span>
+                </div>
               </div>
             </div>
           </div>

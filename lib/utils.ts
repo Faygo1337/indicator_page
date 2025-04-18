@@ -162,3 +162,42 @@ export function formatNumber(value: number | string, options: {
   // Добавляем символы
   return `${prefix}${formattedValue}${isPercent ? '%' : ''}`;
 }
+
+/**
+ * Форматирует значение Market Cap с суффиксами K, M, B
+ * Например: $320.22K, $3.2M, $5.67B
+ */
+export function formatMarketCap(value: number | string): string {
+  // Преобразуем входное значение в число
+  const numValue = typeof value === 'string' ? extractNumericValue(value) : value;
+  
+  if (isNaN(numValue)) return typeof value === 'string' ? value : '$0';
+  
+  // Если значение меньше 1000, округляем до целого
+  if (numValue < 1000) {
+    return `$${Math.round(numValue)}`;
+  }
+  
+  // Определяем суффикс и делитель
+  let suffix = '';
+  let divider = 1;
+  
+  if (numValue >= 1000000000) {
+    suffix = 'B';
+    divider = 1000000000;
+  } else if (numValue >= 1000000) {
+    suffix = 'M';
+    divider = 1000000;
+  } else {
+    suffix = 'K';
+    divider = 1000;
+  }
+  
+  // Форматируем число с точкой в качестве разделителя десятичной части
+  const formattedValue = (numValue / divider).toFixed(2);
+  
+  // Убираем лишние нули после запятой (например, 3.20M -> 3.2M)
+  const cleanedValue = formattedValue.replace(/\.?0+$/, '');
+  
+  return `$${cleanedValue}${suffix}`;
+}
