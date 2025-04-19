@@ -151,17 +151,13 @@ export function formatNumber(value: number | string, options: {
   
   if (isNaN(numValue)) return typeof value === 'string' ? value : '0';
   
-  // Добавляем небольшую случайную флуктуацию (±0.5%)
-  const fluctuation = 1 + (Math.random() * 0.01 - 0.005);
-  const fluctuatedValue = numValue * fluctuation;
-  
   // Форматируем с разделителями тысяч
   const formatter = new Intl.NumberFormat('ru-RU', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
   
-  const formattedValue = formatter.format(fluctuatedValue);
+  const formattedValue = formatter.format(numValue);
   
   // Добавляем символы
   return `${prefix}${formattedValue}${isPercent ? '%' : ''}`;
@@ -177,23 +173,19 @@ export function formatMarketCap(value: number | string): string {
   
   if (isNaN(numValue)) return typeof value === 'string' ? value : '$0';
   
-  // Добавляем небольшую случайную флуктуацию (±0.5%)
-  const fluctuation = 1 + (Math.random() * 0.01 - 0.005);
-  const fluctuatedValue = numValue * fluctuation;
-  
   // Если значение меньше 1000, округляем до целого
-  if (fluctuatedValue < 1000) {
-    return `$${Math.round(fluctuatedValue)}`;
+  if (numValue < 1000) {
+    return `$${Math.round(numValue)}`;
   }
   
   // Определяем суффикс и делитель
   let suffix = '';
   let divider = 1;
   
-  if (fluctuatedValue >= 1000000000) {
+  if (numValue >= 1000000000) {
     suffix = 'B';
     divider = 1000000000;
-  } else if (fluctuatedValue >= 1000000) {
+  } else if (numValue >= 1000000) {
     suffix = 'M';
     divider = 1000000;
   } else {
@@ -201,8 +193,19 @@ export function formatMarketCap(value: number | string): string {
     divider = 1000;
   }
   
-  // Форматируем число с точкой в качестве разделителя десятичной части
-  const formattedValue = (fluctuatedValue / divider).toFixed(2);
+  // Вычисляем значение после деления
+  const scaledValue = numValue / divider;
+  
+  // Определяем количество десятичных знаков на основе значения
+  let decimals = 2;
+  if (scaledValue >= 100) {
+    decimals = 1; // Для больших чисел меньше десятичных знаков
+  } else if (scaledValue < 10) {
+    decimals = 2; // Для малых чисел больше десятичных знаков
+  }
+  
+  // Форматируем число с фиксированным количеством десятичных знаков
+  const formattedValue = scaledValue.toFixed(decimals);
   
   // Убираем лишние нули после запятой (например, 3.20M -> 3.2M)
   const cleanedValue = formattedValue.replace(/\.?0+$/, '');

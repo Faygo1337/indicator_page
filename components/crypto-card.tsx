@@ -80,29 +80,18 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
   const lastMarketCapRef = useRef<string | undefined>(undefined);
   const renderCountRef = useRef(0);
   
-  // Для отладки
-  useEffect(() => {
-    renderCountRef.current++;
-    console.log(`[CryptoCard] Отрисовка #${renderCountRef.current}`, { 
-      id: data?.id,
-      updateId: data?._updateId,
-      marketCap: data?.marketCap,
-      active: animate
-    });
-  });
-  
   // Используем хук для отслеживания изменений данных с правильным типом
   const [trackedData, forceUpdateImmediate] = useTrackedData<ExtendedCryptoCard>(data || null);
   
   // Получаем статус соединения и данные из WebSocket контекста
-  const { status, cards, updateCard } = useWebSocket();
-  const isConnected = status === 'connected';
+  const wsContextData = useWebSocket();
+  const isConnected = wsContextData.status === 'connected';
   
-  // Находим данные из WebSocket, соответствующие данной карточке
-  const wsData = useMemo(() => {
-    if (!data?.id || !cards || !cards.length) return null;
-    return cards.find((card: ExtendedCryptoCard) => card.id === data.id);
-  }, [cards, data?.id]);
+  // Находим данные из контекста, соответствующие карточке
+  const wsCardData = useMemo(() => {
+    if (!data?.id) return null;
+    return wsContextData.cards.find(card => card.id === data.id);
+  }, [wsContextData.cards, data?.id]);
   
   // Отслеживаем предыдущие значения для анимации
   useEffect(() => {
@@ -114,53 +103,42 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
   // Для хранения предыдущего значения marketCap
   const [prevMarketCap, setPrevMarketCap] = useState<string | undefined>(undefined);
   
+  // Добавляем пустой useEffect для renderCountRef
+  useEffect(() => {
+    renderCountRef.current++;
+  }, []);
+  
+  // Добавляем восстановленную функциональность эффекта обработки изменений marketCap
   // Отслеживаем изменения marketCap для вычисления соотношения
   useEffect(() => {
-    if (trackedData?.marketCap && trackedData.marketCap !== prevMarketCap) {
+    if (wsCardData?.marketCap && wsCardData.marketCap !== trackedData?.marketCap) {
       // Проверяем изменение значения для анимации
-      if (prevMarketCap) {
-        const prevValue = extractNumericValue(prevMarketCap);
-        const currValue = extractNumericValue(trackedData.marketCap);
-        
-        if (currValue > prevValue) {
-          setPriceDirection('increase');
-          setMarketCapClass('value-increase market-cap-realtime');
-        } else if (currValue < prevValue) {
-          setPriceDirection('decrease');
-          setMarketCapClass('value-decrease market-cap-realtime');
-        } else {
-          setMarketCapClass('');
-        }
-        
-        // Сбрасываем класс анимации через некоторое время
-        setTimeout(() => {
-          setMarketCapClass('market-cap-realtime');
-        }, 700);
-        
-        // Рассчитываем коэффициент изменения
-        const ratio = calculatePriceRatio(trackedData.marketCap, prevMarketCap);
-        
-        // Обновляем значение priceChange в формате ×N.NN (до сотых)
-        const priceChangeText = `×${ratio.toFixed(2)}`;
-        
-        // Обновляем поле через WebSocket API, если оно отличается
-        if (trackedData.priceChange !== priceChangeText && updateCard) {
-          updateCard(trackedData.id, { 
-            priceChange: priceChangeText
-          });
-        }
-      } else {
-        // Первоначальная загрузка
-        setMarketCapClass('market-cap-realtime');
+      const prevValue = extractNumericValue(trackedData?.marketCap || '0');
+      const currValue = extractNumericValue(wsCardData.marketCap);
+      
+      if (currValue > prevValue) {
+        setPriceDirection('increase');
+        setMarketCapClass('market-cap-increase market-cap-realtime');
+      } else if (currValue < prevValue) {
+        setPriceDirection('decrease');
+        setMarketCapClass('market-cap-decrease market-cap-realtime');
       }
       
-      // Сохраняем текущее значение для следующего сравнения
-      setPrevMarketCap(trackedData.marketCap);
-      lastMarketCapRef.current = trackedData.marketCap;
+      // Сбрасываем класс анимации через некоторое время
+      setTimeout(() => {
+        setMarketCapClass('market-cap-realtime');
+      }, 800);
+      
+      // Рассчитываем коэффициент изменения
+      const ratio = calculatePriceRatio(wsCardData.marketCap, trackedData?.marketCap);
+      const priceChangeText = `×${ratio.toFixed(2)}`;
+      
+      // Принудительно обновляем карточку
+      forceUpdateImmediate();
     }
-  }, [trackedData?.marketCap, prevMarketCap, trackedData?.id, trackedData?.priceChange, updateCard]);
+  }, [wsCardData?.marketCap, trackedData?.marketCap, forceUpdateImmediate]);
   
-  // Обработка обновлений в реальном времени
+  // Удаляем отладочную информацию из эффекта обновлений в реальном времени
   useEffect(() => {
     if (data?._updateId && data._updateId.includes('update-marketcap') && lastMarketCapRef.current !== data.marketCap) {
       // Для обновлений Market Cap из интервала анимации
@@ -181,11 +159,11 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
   
   // Обновляем данные, если пришли новые с WebSocket
   useEffect(() => {
-    if (wsData && trackedData) {
+    if (wsCardData && trackedData) {
       const fieldsToAnimate: Record<string, boolean> = {};
       let hasChanges = false;
       
-      if (wsData.marketCap !== trackedData.marketCap) {
+      if (wsCardData.marketCap !== trackedData.marketCap) {
         fieldsToAnimate.marketCap = true;
         fieldsToAnimate.priceChange = true; 
         hasChanges = true;
@@ -197,20 +175,18 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
         if (oldValue !== newValue) {
           fieldsToAnimate[fieldName] = true;
           hasChanges = true;
-          console.log(`[Card] Изменение ${String(fieldName)}: ${oldValue} -> ${newValue}`);
         }
       };
       
-      checkField('top10', trackedData.top10, wsData.top10);
-      checkField('devWalletHold', trackedData.devWalletHold, wsData.devWalletHold);
-      checkField('first70BuyersHold', trackedData.first70BuyersHold, wsData.first70BuyersHold);
-      checkField('insiders', trackedData.insiders, wsData.insiders);
-      checkField('tokenAge', trackedData.tokenAge, wsData.tokenAge);
+      checkField('top10', trackedData.top10, wsCardData.top10);
+      checkField('devWalletHold', trackedData.devWalletHold, wsCardData.devWalletHold);
+      checkField('first70BuyersHold', trackedData.first70BuyersHold, wsCardData.first70BuyersHold);
+      checkField('insiders', trackedData.insiders, wsCardData.insiders);
+      checkField('tokenAge', trackedData.tokenAge, wsCardData.tokenAge);
       
-      if (JSON.stringify(trackedData.whales) !== JSON.stringify(wsData.whales)) {
+      if (JSON.stringify(trackedData.whales) !== JSON.stringify(wsCardData.whales)) {
         fieldsToAnimate.whales = true;
         hasChanges = true;
-        console.log(`[Card] Изменение trades`);
       }
 
       if (hasChanges) {
@@ -218,8 +194,8 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
         setPrevData({...trackedData}); 
         setAnimateFields(fieldsToAnimate);
         
-        const updatedData = {...trackedData, ...wsData, _lastUpdated: Date.now()};
-        updateCard(trackedData.id, updatedData);
+        const updatedData = {...trackedData, ...wsCardData, _lastUpdated: Date.now()};
+        wsContextData.updateCard(trackedData.id, updatedData);
         
         // Добавляем анимацию подсветки всей карточки
         setTimeout(() => {
@@ -228,10 +204,9 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
         }, 1500);
       }
     }
-  }, [wsData, trackedData, forceUpdateImmediate]);
+  }, [wsCardData, trackedData, forceUpdateImmediate]);
   
   const debouncedSetAnimate = useDebounce((fields: Record<string, boolean>) => {
-    console.log('Применение анимации с задержкой:', Object.keys(fields));
     setAnimateFields(fields);
   }, 50);
   
@@ -258,9 +233,11 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
   }, [animate, data, trackedData, isAnimating]);
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(data?.id || "0xMockSmartContractAddress");
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (data?.id) {
+      navigator.clipboard.writeText(data.id);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   const handleImageError = () => {
@@ -304,11 +281,25 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
       ? formatMarketCap(currentValue)
       : formatNumber(currentValue, { isPercent });
     
-    // Если marketCap обновляется с плавной анимацией
-    if (field === 'marketCap' && marketCapClass) {
-      return <div className={marketCapClass}>{formatted}</div>;
+    // Для marketCap добавляем более яркую и заметную анимацию
+    if (field === 'marketCap') {
+      const animClass = marketCapClass ? marketCapClass : 'market-cap-realtime';
+      // Добавляем символ изменения
+      const changeIcon = priceDirection === 'increase' 
+        ? <span className="text-green-400 text-xs">↑</span> 
+        : priceDirection === 'decrease' 
+          ? <span className="text-red-400 text-xs">↓</span> 
+          : null;
+      
+      return (
+        <div className={`flex items-center justify-center gap-0.5 ${animClass}`}>
+          {changeIcon}
+          <span>{formatted}</span>
+        </div>
+      );
     }
     
+    // Для остальных полей
     if (animateFields[field] && prevData) {
       const prevValueRaw = (prevData as any)[field] || '0';
       const currentValueRaw = currentValue || '0';
@@ -367,9 +358,53 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
 
   useEffect(() => {
     if (data?._updateId) {
-      console.log(`[CryptoCard] Обновление карточки ${data.id}`);
+      // Сохраняем предыдущие данные для сравнения
+      setPrevData(prev => prev ? {...prev} : null);
+      
+      // Анализируем, какие поля изменились для анимации
+      const fieldsToAnimate: Record<string, boolean> = {};
+      
+      if (prevData) {
+        // Проверяем изменение marketCap
+        if (data.marketCap !== prevData.marketCap) {
+          fieldsToAnimate.marketCap = true;
+          
+          // Определяем направление изменения для анимации
+          const prevValue = extractNumericValue(prevData.marketCap || '0');
+          const currValue = extractNumericValue(data.marketCap || '0');
+          
+          if (currValue > prevValue) {
+            setPriceDirection('increase');
+            setMarketCapClass('market-cap-increase');
+          } else if (currValue < prevValue) {
+            setPriceDirection('decrease');
+            setMarketCapClass('market-cap-decrease');
+          }
+          
+          // Сбрасываем класс анимации через некоторое время
+          setTimeout(() => {
+            setMarketCapClass('');
+          }, 800);
+        }
+        
+        // Проверяем другие поля
+        if (data.top10 !== prevData.top10) fieldsToAnimate.top10 = true;
+        if (data.devWalletHold !== prevData.devWalletHold) fieldsToAnimate.devWalletHold = true;
+        if (data.first70BuyersHold !== prevData.first70BuyersHold) fieldsToAnimate.first70BuyersHold = true;
+        if (data.insiders !== prevData.insiders) fieldsToAnimate.insiders = true;
+      }
+      
+      // Устанавливаем анимации для измененных полей
+      if (Object.keys(fieldsToAnimate).length > 0) {
+        setAnimateFields(fieldsToAnimate);
+        
+        // Сбрасываем анимацию через определенное время
+        setTimeout(() => {
+          setAnimateFields({});
+        }, 1500);
+      }
     }
-  }, [data]);
+  }, [data?._updateId, data]);
 
   const renderPriceChangeBadge = () => {
     const { isUp, value, ratioValue } = getPriceChangeInfo;
@@ -399,75 +434,6 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
         )}
         <span>×{value}</span>
       </Badge>
-    );
-  };
-
-  // Функция для принудительной проверки реальных изменений данных
-  useEffect(() => {
-    if (data && data._updateId) {
-      // Этот эффект запускается при каждом обновлении данных
-      console.log(`[CryptoCard] Получены обновленные данные:`, data._updateId);
-      
-      if (data.marketCap && prevMarketCap && data.marketCap !== prevMarketCap) {
-        const prevValue = extractNumericValue(prevMarketCap);
-        const currValue = extractNumericValue(data.marketCap);
-        
-        console.log(`[CryptoCard] Изменение marketCap: ${prevMarketCap} -> ${data.marketCap}`);
-        
-        if (currValue > prevValue) {
-          setPriceDirection('increase');
-          setMarketCapClass('value-increase market-cap-realtime');
-        } else if (currValue < prevValue) {
-          setPriceDirection('decrease');
-          setMarketCapClass('value-decrease market-cap-realtime');
-        }
-        
-        // Пульсация для частых обновлений (сброс класса через короткое время)
-        setTimeout(() => {
-          setMarketCapClass('market-cap-realtime');
-        }, 500);
-        
-        setPrevMarketCap(data.marketCap);
-      }
-    }
-  }, [data, data?._updateId]);
-
-  // Добавляем гистограмму для наглядного отображения изменений
-  const renderMarketCapWithChart = (marketCapValue: string) => {
-    // Используем обычный рендер, если нет истории изменений
-    if (!marketCapClass) {
-      return (
-        <div className="text-center font-medium mb-1">
-          {renderValueChange(marketCapValue || '', 'marketCap')}
-        </div>
-      );
-    }
-    
-    // Визуализация с индикатором изменения для частых обновлений
-    const directionClass = priceDirection === 'increase' ? 'text-green-400' : 
-                          priceDirection === 'decrease' ? 'text-red-400' : '';
-    
-    const arrowIcon = priceDirection === 'increase' ? '↑' :
-                     priceDirection === 'decrease' ? '↓' : '';
-                         
-    return (
-      <div>
-        <div className={`flex items-center justify-center ${marketCapClass}`}>
-          {arrowIcon && <span className={`text-xs font-bold mr-1 ${directionClass}`}>{arrowIcon}</span>}
-          {renderValueChange(marketCapValue || '', 'marketCap')}
-        </div>
-        
-        {/* Визуальный индикатор - маленькая полоска, показывающая активность обновлений */}
-        <div className="w-full h-0.5 bg-gray-800 mt-1 rounded-full overflow-hidden">
-          <div 
-            className={`h-full ${priceDirection === 'increase' ? 'bg-green-500' : 'bg-red-500'} transition-all duration-500`}
-            style={{ 
-              width: `${priceDirection ? '100%' : '0%'}`, 
-              opacity: marketCapClass.includes('market-cap-pulse') ? 1 : 0.5
-            }}
-          />
-        </div>
-      </div>
     );
   };
 
@@ -593,8 +559,12 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
           <div style={{ marginTop: ".6rem" }}>
             
             <div className="grid grid-cols-3 gap-x-2 gap-y-2 text-xs">
-              <div className="flex flex-col items-center p-2 rounded-lg border border-green-800/40 bg-gray-900/30 backdrop-blur-sm">
-                {renderMarketCapWithChart(displayData?.marketCap || '')}
+              <div className={`flex flex-col items-center p-2 rounded-lg border border-green-800/40 bg-gray-900/30 backdrop-blur-sm ${
+                animateFields.marketCapBlock ? 'market-cap-highlight' : ''
+              }`}>
+                <div className="text-center font-medium mb-1">
+                  {renderValueChange(displayData?.marketCap || '', 'marketCap')}
+                </div>
                 <div className="flex items-center text-gray-400 text-[10px]">
                   <span className="mr-1 text-amber-500">💎</span>
                   <span>Market Cap</span>

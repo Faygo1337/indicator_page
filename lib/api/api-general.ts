@@ -42,6 +42,13 @@ class ApiGeneralService {
   private newSignalCallbacks: ((data: CryptoCard) => void)[] = [];
   private updateSignalCallbacks: ((token: string, updates: Partial<CryptoCard>) => void)[] = [];
   private errorCallbacks: ((error: any) => void)[] = [];
+  
+  // Добавляем параметры для поддержания соединения (heartbeat)
+  private heartbeatIntervalId: number | null = null;
+  private heartbeatInterval = 30000; // 30 секунд между пингами
+  private lastPongTime = 0;
+  private missedPongs = 0;
+  private maxMissedPongs = 3;
 
   private constructor() {}
 
@@ -63,142 +70,67 @@ class ApiGeneralService {
     console.log("Верификация кошелька:", wallet, "с подписью:", signature, "timestamp:", timestamp);
 
     try {
-
-      if (signature === 'mobile_signature') {
-        console.log('Обнаружена мобильная подпись, используем тестовые данные');
-        const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjcmVhdGVkQXQiOjE3NDQyOTcxNTMsImV4cCI6MTc0NDM4MzcyMywiaWF0IjoxNzQ0Mjk3MzIzLCJpZCI6MywibGlua2VkV2FsbGV0IjoiMnl6RUQzS2FXTDY1WUJxMlVTd0dIV2JkUE5QM2JxNlRRN1JBaUhic2JaQ2ciLCJzdWJFeHBBdCI6MCwidG9wdXBXYWxsZXQiOiIzekU4cUE4eFN1Nk5QbzR5V0trN3dWYXdWc3Nlb3hZS3VvTld1VlZLc1lxbiJ9.HeH-csxMUSyqV_6b_2HW5hfH1UAxFYTuTQ4_0z9E2Yw";
-        this.accessToken = token;
-        
-        return {
-          token,
-          payload: {
-            id: 3,
-            linkedWallet: wallet,
-            topupWallet: "3zE8qA8xSu6NPo4yWKk7wVawVsseoxYKuoNWuVVKsYqn",
-            subExpAt: 0,
-            createdAt: 1744297153,
-            exp: 1744383723,
-            iat: 1744297323,
-          },
+      // Всегда используем реальное API
+      try {
+        // Подготавливаем данные для запроса
+        const dataPost = {
+          timestamp: timestamp || Date.now(),
+          ref: 1,
+          signature: signature,
+          wallet: wallet
         };
-      }
-
-      // Для разработки: переключатель между реальным API и моком
-      const useMockAPI = false; // Установите в false для использования реального API
-      
-      let data: VerifyApiResponse;
-      
-      if (useMockAPI) {
-        // Симуляция API вызова
-        await new Promise((resolve) => setTimeout(resolve, 1000));
         
-        // Мок-ответ с тестовыми данными
-        data = {
-          success: true,
-          status: true,
-          token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjcmVhdGVkQXQiOjE3NDQyOTcxNTMsImV4cCI6MTc0NDM4MzcyMywiaWF0IjoxNzQ0Mjk3MzIzLCJpZCI6MywibGlua2VkV2FsbGV0IjoiMnl6RUQzS2FXTDY1WUJxMlVTd0dIV2JkUE5QM2JxNlRRN1JBaUhic2JaQ2ciLCJzdWJFeHBBdCI6MCwidG9wdXBXYWxsZXQiOiIzekU4cUE4eFN1Nk5QbzR5V0trN3dWYXdWc3Nlb3hZS3VvTld1VlZLc1lxbiJ9.HeH-csxMUSyqV_6b_2HW5hfH1UAxFYTuTQ4_0z9E2Yw",
-        };
-      } else {
-        try {
-          // Подготавливаем данные для запроса
-          const dataPost = {
-            timestamp: timestamp || Date.now(),
-            ref: 1,
-            signature: signature,
-            wallet: wallet
+        console.log('Отправка запроса:', dataPost);
+        
+        const response = await axios.post(`${API_HOST}/api/verify`, dataPost, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          }
+        });
+        
+        console.log('Получен ответ с статусом:', response.status);
+        
+        const apiResponse = response.data;
+        console.log('Данные ответа:', apiResponse);
+        
+        if ('token' in apiResponse) {
+          const authResponse = apiResponse as AuthVerifyResponse;
+          
+          return {
+            token: authResponse.token || '',
+            payload: authResponse.token ? decodeJWT(authResponse.token) : null,
           };
-          
-          //  POST 
-          console.log('Отправка запроса:', dataPost);
-          
-          const response = await axios.post(`${API_HOST}/api/verify`, dataPost, {
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            }
-          });
-          
-          //  статус 
-          console.log('Получен ответ с статусом:', response.status);
-          
-         
-          const apiResponse = response.data;
-          console.log('Данные ответа:', apiResponse);
-          
-
-          if ('token' in apiResponse) {
-            const authResponse = apiResponse as AuthVerifyResponse;
-            
-
-            data = {
-              success: authResponse.success,
-              status: authResponse.status,
-              token: authResponse.token || '',
-            };
-            
-            console.log('Получен ответ от API с токеном');
-          } else {
-            console.warn('Получен ответ в нестандартном формате:', apiResponse);
-            data = apiResponse as VerifyApiResponse;
-          }
-        } catch (apiError) {
-          if (axios.isAxiosError(apiError)) {
-            console.error('Ошибка Axios:', apiError.message);
-            console.error('Статус ошибки:', apiError.response?.status);
-            console.error('Данные ошибки:', apiError.response?.data);
-            
-            if (apiError.response?.status === 401) {
-              console.error('Ошибка аутентификации 401 Unauthorized. Проверьте правильность данных запроса или доступность сервера.');
-            }
-            
-            if (apiError.code === 'ERR_NETWORK') {
-              console.error('Ошибка сети. Проверьте доступность сервера.');
-            }
-            
-            if (apiError.code === 'ECONNABORTED') {
-              console.error('Таймаут соединения. Сервер не отвечает.');
-            }
-          } else {
-            console.error('Неизвестная ошибка при запросе:', apiError);
-          }
-          
-          throw apiError;
+        } else {
+          console.warn('Получен ответ в нестандартном формате:', apiResponse);
+          return {
+            token: apiResponse.token || '',
+            payload: null,
+          };
         }
-      }
-      
-
-      if (!data.token) {
-        console.error('API вернул пустой токен');
-        throw new Error('Получен пустой токен аутентификации');
-      }
-      
-
-      this.accessToken = data.token;
-      
-
-      if (data.status === true) {
-        const decodedPayload = logDecodedJWT(data.token);
+      } catch (apiError) {
+        if (axios.isAxiosError(apiError)) {
+          console.error('Ошибка Axios:', apiError.message);
+          console.error('Статус ошибки:', apiError.response?.status);
+          console.error('Данные ошибки:', apiError.response?.data);
+          
+          if (apiError.response?.status === 401) {
+            console.error('Ошибка аутентификации 401 Unauthorized. Проверьте правильность данных запроса или доступность сервера.');
+          }
+          
+          if (apiError.code === 'ERR_NETWORK') {
+            console.error('Ошибка сети. Проверьте доступность сервера.');
+          }
+          
+          if (apiError.code === 'ECONNABORTED') {
+            console.error('Таймаут соединения. Сервер не отвечает.');
+          }
+        } else {
+          console.error('Неизвестная ошибка при запросе:', apiError);
+        }
         
-        return {
-          token: data.token,
-          payload: decodedPayload,
-        };
+        throw apiError;
       }
-      
-      console.warn('API вернул status: false, используем тестовые данные');
-      
-      return {
-        token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ1c2VyXzEyMyIsImNvbm5lY3RlZFdhbGxldCI6IndhbGxldF8xMjMiLCJ0b3B1cFdhbGxldCI6InRvcHVwX3dhbGxldF8xMjMiLCJzdWJzY3JpcHRpb25FeHBpcmVBdCI6bnVsbCwianRUb2tlbiI6ImFjY2Vzc190b2tlbl8xMjMifQ.8yUBiUs9cqUEEtX9vYlVnuHgJZGZlR3d-OsLhAJqQlA",
-        payload: {
-          id: 1,
-          linkedWallet: wallet,
-          topupWallet: "ADgHfNqhY61Pcy3nHmsRDpczMkJ5DnTnZozKcGsM6wZh",
-          subExpAt: 123,
-          createdAt: 123,
-          exp: 123,
-          iat: 123,
-        },
-      };
     } catch (error) {
       console.error("Ошибка при верификации кошелька:", error);
       
@@ -217,28 +149,6 @@ class ApiGeneralService {
   async checkPayment(walletAddress: string = ""): Promise<PaymentResponse> {
     try {
       console.log("Проверка статуса платежа для:", walletAddress);
-      
-      // Для тестирования используем моковые данные
-      const useMockAPI = false;
-      
-      if (useMockAPI) {
-        // Симуляция задержки API
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        
-        const mockResponse = {
-          accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjcmVhdGVkQXQiOjE3NDQyOTcxNTMsImV4cCI6MTc0NDM4MzcyMywiaWF0IjoxNzQ0Mjk3MzIzLCJpZCI6MywibGlua2VkV2FsbGV0IjoiMnl6RUQzS2FXTDY1WUJxMlVTd0dIV2JkUE5QM2JxNlRRN1JBaUhic2JaQ2ciLCJzdWJFeHBBdCI6MCwidG9wdXBXYWxsZXQiOiIzekU4cUE4eFN1Nk5QbzR5V0trN3dWYXdWc3Nlb3hZS3VvTld1VlZLc1lxbiJ9.HeH-csxMUSyqV_6b_2HW5hfH1UAxFYTuTQ4_0z9E2Yw",
-          expireAt: "2025-05-10 22:02:50.761638 +0300 +03",
-          hasSubscription: true,
-          success: true
-        };
-        
-        // Сохраняем токен для будущих запросов
-        if (mockResponse.success) {
-          this.accessToken = mockResponse.accessToken;
-        }
-        
-        return mockResponse;
-      }
       
       // Реальная реализация запроса к API
       const url = API_ENDPOINTS.payment;
@@ -373,16 +283,10 @@ class ApiGeneralService {
 
       console.log(`Создание WebSocket соединения: ${WS_ENDPOINT}`);
       
-      // Создаем новое соединение
-      // Используем моки для разработки в случае ошибок
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Режим разработки - готовы использовать мок-данные при необходимости');
-      }
-      
       this.messageReceivedFlag = false;
       
       // Создаем соединение с указанием протоколов
-    this.ws = new WebSocket(WS_ENDPOINT);
+      this.ws = new WebSocket(WS_ENDPOINT);
 
       // Устанавливаем обработчики событий
       this.ws.onopen = this.handleOpen.bind(this);
@@ -420,7 +324,7 @@ class ApiGeneralService {
     this.connected = true;
     this.connecting = false;
     this.attemptingReconnect = false;
-      this.reconnectAttempts = 0;
+    this.reconnectAttempts = 0;
     
     // Отправляем авторизацию
     this.sendAuthMessage();
@@ -428,6 +332,9 @@ class ApiGeneralService {
     // Устанавливаем флаг успешного соединения сразу после авторизации
     // Это предотвратит повторные попытки соединения
     this.connectionEstablished = true;
+    
+    // Запускаем механизм пингов для поддержания соединения
+    this.startHeartbeat();
   }
   
   /**
@@ -450,12 +357,65 @@ class ApiGeneralService {
       console.log("Отправлено сообщение авторизации");
       
       // Установим флаг успешного подключения после отправки
-
-        this.connectionEstablished = true;
-
+      this.connectionEstablished = true;
     } catch (error) {
       console.error("Ошибка отправки авторизации:", error);
       this.notifyError(error);
+    }
+  }
+  
+  /**
+   * Запуск механизма пингов для поддержания соединения
+   */
+  private startHeartbeat(): void {
+    // Очищаем предыдущий интервал, если он был
+    if (this.heartbeatIntervalId !== null) {
+      clearInterval(this.heartbeatIntervalId);
+      this.heartbeatIntervalId = null;
+    }
+    
+    // Сбрасываем счетчики
+    this.lastPongTime = Date.now();
+    this.missedPongs = 0;
+    
+    // Устанавливаем новый интервал для отправки пингов
+    this.heartbeatIntervalId = window.setInterval(() => {
+      this.sendPing();
+    }, this.heartbeatInterval);
+    
+    console.log("Запущен механизм heartbeat для поддержания соединения");
+  }
+
+  /**
+   * Отправка ping-сообщения серверу
+   */
+  private sendPing(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.warn("WebSocket не подключен. Пинг не отправлен.");
+      return;
+    }
+    
+    try {
+      // Проверяем, не пропустили ли мы pong с прошлого раза
+      const currentTime = Date.now();
+      const timeSinceLastPong = currentTime - this.lastPongTime;
+      
+      if (timeSinceLastPong > this.heartbeatInterval * 1.5) {
+        this.missedPongs++;
+        console.warn(`Пропущен pong (${this.missedPongs}/${this.maxMissedPongs})`);
+        
+        if (this.missedPongs >= this.maxMissedPongs) {
+          console.error("Превышено максимальное количество пропущенных pong-ответов");
+          this.reconnect();
+          return;
+        }
+      }
+      
+      // Отправляем ping в формате JSON для совместимости с сервером
+      this.ws.send(JSON.stringify({ ping: true, timestamp: currentTime }));
+      console.log("Отправлен ping");
+    } catch (error) {
+      console.error("Ошибка отправки ping:", error);
     }
   }
   
@@ -467,15 +427,29 @@ class ApiGeneralService {
       // Отмечаем, что получили сообщение
       this.messageReceivedFlag = true;
       
-      // Проверяем, не является ли сообщение просто строкой
-      if (typeof event.data === 'string' && (event.data === 'ping' || event.data === 'pong')) {
-        console.log(`Получен ответ: ${event.data}`);
-        return;
+      // Проверяем, не является ли сообщение ping/pong
+      if (typeof event.data === 'string') {
+        const lowerData = event.data.toLowerCase();
+        if (lowerData === 'ping' || lowerData === 'pong') {
+          this.lastPongTime = Date.now();
+          this.missedPongs = 0;
+          console.log(`Получен ответ: ${event.data}`);
+          return;
+        }
       }
       
-      // Парсим сообщение
+      // Парсим JSON сообщение
       try {
         const message = JSON.parse(event.data);
+        
+        // Проверяем, является ли сообщение pong-ответом
+        if (message && (message.pong === true || message.type === 'pong')) {
+          this.lastPongTime = Date.now();
+          this.missedPongs = 0;
+          console.log("Получен pong-ответ");
+          return;
+        }
+        
         console.log("Получено WebSocket сообщение:", message);
         
         // Устанавливаем флаг успешной коммуникации
@@ -528,10 +502,8 @@ class ApiGeneralService {
     
     this.connectionEstablished = false;
     
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Будем использовать мок-данные, так как получена ошибка WebSocket');
-      this.notifyError(new Error("Ошибка соединения - используем мок-данные"));
-    }
+    // Просто передаем ошибку
+    this.notifyError(new Error("Ошибка соединения WebSocket"));
     
     this.attemptingReconnect = false;
   }
@@ -572,14 +544,7 @@ class ApiGeneralService {
       return;
     }
     
-    // В режиме разработки переходим на мок-данные
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Переходим на мок-данные из-за закрытия соединения');
-      this.notifyError(new Error("Соединение закрыто - используем мок-данные"));
-      return;
-    }
-    
-
+    // Всегда пытаемся переподключиться
     this.reconnect();
   }
   
@@ -607,6 +572,12 @@ class ApiGeneralService {
   disconnect(): void {
     this.connecting = false;
     this.connectionEstablished = false;
+    
+    // Останавливаем пинги
+    if (this.heartbeatIntervalId !== null) {
+      clearInterval(this.heartbeatIntervalId);
+      this.heartbeatIntervalId = null;
+    }
     
     if (this.connectionTimeoutId) {
       clearTimeout(this.connectionTimeoutId);
@@ -637,7 +608,7 @@ class ApiGeneralService {
     
     this.connected = false;
     this.accessToken = null;
-      this.reconnectAttempts = 0;
+    this.reconnectAttempts = 0;
     this.messageReceivedFlag = false;
     console.log("WebSocket отключен");
   }
@@ -734,17 +705,13 @@ class ApiGeneralService {
     const first70BuyersHold = signal.holdings?.first70 !== undefined ? `${Math.round(signal.holdings.first70)}%` : "0%";
     const insiders = signal.holdings?.insidersHolds !== undefined ? `${Math.round(signal.holdings.insidersHolds)}%` : "0%";
 
-    // Преобразуем транзакции в формат китов, если они есть
+    // Преобразуем транзакции в формат китов, только из реальных данных
     const whales = signal.trades && signal.trades.length > 0
       ? signal.trades.slice(0, 3).map(trade => ({
-          count: Math.floor(Math.random() * 50) + 10, // Генерируем случайное число для count
+          count: Math.round(trade.amtSol * 10), // Пример преобразования: 1.5 SOL → 15
           amount: `${Math.round(trade.amtSol * 100) / 100} SOL`
         }))
-      : [
-          { count: 45, amount: "1.25 SOL" },
-          { count: 30, amount: "0.85 SOL" },
-          { count: 15, amount: "0.55 SOL" }
-        ];
+      : []; // Пустой массив вместо моковых данных
 
     // Создаем объект карточки с готовыми данными
     return {
@@ -758,7 +725,7 @@ class ApiGeneralService {
       devWalletHold,
       first70BuyersHold,
       insiders,
-      whales,
+      whales: whales.length > 0 ? whales : [{ count: 0, amount: "0 SOL" }],
       noMint: true,
       blacklist: false,
       burnt: "100%",
@@ -775,27 +742,12 @@ class ApiGeneralService {
     console.log("[API] Обработка обновления:", update);
 
     if (update.market) {
-      if (update.market.price !== undefined) {
-        // Передаем исходные данные price и circulatingSupply для интерполяции
-        // внутри компонента, вместо предварительного расчета marketCap здесь
-
-        // Также добавляем случайные колебания для демонстрации анимаций
-        // В реальном приложении эти линии должны быть удалены
-        const randomVariation = 1 + (Math.random() * 0.01 - 0.005); // ±0.5%
-        update.market.price = update.market.price * randomVariation;
-        
-        if (update.market.circulatingSupply !== undefined) {
-          // ВАЖНО: Напрямую устанавливаем marketCap для обеспечения обновления UI
-          const marketCapValue = update.market.circulatingSupply * update.market.price;
-          result.marketCap = formatMarketCap(marketCapValue);
-          console.log(`[API] Рассчитан marketCap: ${result.marketCap}`);
-        }
-
-        // Для предвычисления priceChange
-        result.priceChange = `×${(1 + Math.random() * 0.2 - 0.1).toFixed(2)}`; // Случайное значение для демонстрации
+      if (update.market.price !== undefined && update.market.circulatingSupply !== undefined) {
+        const marketCapValue = update.market.circulatingSupply * update.market.price;
+        result.marketCap = formatMarketCap(marketCapValue);
+        console.log(`[API] Рассчитан marketCap: ${result.marketCap}`);
       }
     }
-
 
     if (update.holdings) {
       if (update.holdings.top10 !== undefined) {
@@ -816,15 +768,6 @@ class ApiGeneralService {
       }
     }
     
-    // Обновляем сделки, если они есть
-    if (update.trades && update.trades.length > 0) {
-      result.whales = update.trades.slice(0, 3).map(trade => ({
-        count: Math.floor(Math.random() * 30) + 10,
-        amount: `${Math.round(trade.amtSol * 100) / 100} SOL`
-      }));
-    }
-    
-    // Добавляем дополнительную информацию для трассировки
     if (Object.keys(result).length === 0) {
       console.warn("[API] Внимание: Обновление не содержит изменений для UI");
     } else {

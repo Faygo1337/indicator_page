@@ -385,16 +385,16 @@ export default function Home() {
         setIsLoading(true);
         
         // Устанавливаем таймаут для фаллбэка на мок-данные
-        const fallbackTimer = setTimeout(() => {
-          if (cryptoCards.length === 0) {
-            console.log('Таймаут WebSocket - загружаем мок-данные');
-            // setCryptoCards(mockCryptoCards);
-            setIsLoading(false);
-          }
-        }, 10000); // 10 секунд на получение данных
+        // const fallbackTimer = setTimeout(() => {
+        //   if (cryptoCards.length === 0) {
+        //     console.log('Таймаут WebSocket - загружаем мок-данные');
+        //     // setCryptoCards(mockCryptoCards);
+        //     setIsLoading(false);
+        //   }
+        // }, 10000); // 10 секунд на получение данных
         
         return () => {
-          clearTimeout(fallbackTimer);
+          // clearTimeout(fallbackTimer);
         };
       };
       
