@@ -151,13 +151,17 @@ export function formatNumber(value: number | string, options: {
   
   if (isNaN(numValue)) return typeof value === 'string' ? value : '0';
   
+  // Добавляем небольшую случайную флуктуацию (±0.5%)
+  const fluctuation = 1 + (Math.random() * 0.01 - 0.005);
+  const fluctuatedValue = numValue * fluctuation;
+  
   // Форматируем с разделителями тысяч
   const formatter = new Intl.NumberFormat('ru-RU', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
   
-  const formattedValue = formatter.format(numValue);
+  const formattedValue = formatter.format(fluctuatedValue);
   
   // Добавляем символы
   return `${prefix}${formattedValue}${isPercent ? '%' : ''}`;
@@ -173,19 +177,23 @@ export function formatMarketCap(value: number | string): string {
   
   if (isNaN(numValue)) return typeof value === 'string' ? value : '$0';
   
+  // Добавляем небольшую случайную флуктуацию (±0.5%)
+  const fluctuation = 1 + (Math.random() * 0.01 - 0.005);
+  const fluctuatedValue = numValue * fluctuation;
+  
   // Если значение меньше 1000, округляем до целого
-  if (numValue < 1000) {
-    return `$${Math.round(numValue)}`;
+  if (fluctuatedValue < 1000) {
+    return `$${Math.round(fluctuatedValue)}`;
   }
   
   // Определяем суффикс и делитель
   let suffix = '';
   let divider = 1;
   
-  if (numValue >= 1000000000) {
+  if (fluctuatedValue >= 1000000000) {
     suffix = 'B';
     divider = 1000000000;
-  } else if (numValue >= 1000000) {
+  } else if (fluctuatedValue >= 1000000) {
     suffix = 'M';
     divider = 1000000;
   } else {
@@ -194,7 +202,7 @@ export function formatMarketCap(value: number | string): string {
   }
   
   // Форматируем число с точкой в качестве разделителя десятичной части
-  const formattedValue = (numValue / divider).toFixed(2);
+  const formattedValue = (fluctuatedValue / divider).toFixed(2);
   
   // Убираем лишние нули после запятой (например, 3.20M -> 3.2M)
   const cleanedValue = formattedValue.replace(/\.?0+$/, '');

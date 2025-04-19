@@ -20,7 +20,11 @@ export type ExtendedCryptoCard = CryptoCard & {
 };
 
 // Добавляем периодический интервал обновления данных
-const UPDATE_INTERVAL_MS = 1000; // Каждые 1 секунды обновляем данные
+const UPDATE_INTERVAL_MS = 1000; // Каждую секунду обновляем данные
+
+// Минимальный и максимальный процент изменения для живости данных
+const MIN_CHANGE_PERCENT = -1.5; // -1.5%
+const MAX_CHANGE_PERCENT = 2.0;  // +2.0%
 
 export function useWebSocketData(url: string): [
   WebSocketStatus, 
@@ -36,6 +40,7 @@ export function useWebSocketData(url: string): [
   
   // Для отладки
   const updateCountRef = useRef(0);
+  const lastUpdateTimeRef = useRef<Record<string, number>>({});
   
   // Максимальное количество карточек
   const MAX_CARDS = 8;
@@ -52,12 +57,18 @@ export function useWebSocketData(url: string): [
     marketCapStart?: number;
     stepProgress?: number;
     animating?: boolean;
+    baseMarketCap?: number; // Базовое значение для расчета флуктуаций
+    lastChange?: 'up' | 'down' | null; // Последнее направление изменения
+    consecutiveChanges?: number; // Счетчик последовательных изменений в одну сторону
   }>>({});
   
   // Функция для обновления карточки - ключевой метод, который обновляет состояние
   const updateCard = useCallback((token: string, updates: Partial<CryptoCard>) => {
     updateCountRef.current++;
     console.log(`[useWebSocketData] Вызов updateCard для ${token}:`, updates, `(#${updateCountRef.current})`);
+    
+    // Сохраняем время последнего обновления
+    lastUpdateTimeRef.current[token] = Date.now();
     
     setCards(prevCards => {
       const index = prevCards.findIndex(card => card.id === token);
@@ -106,6 +117,17 @@ export function useWebSocketData(url: string): [
           _lastUpdated: Date.now(),
           _updateId: `newSignal-${Date.now()}`
         };
+        
+        // Инициализируем метаданные для новой карточки с базовым marketCap
+        if (newCard.marketCap) {
+          const numericValue = parseFloat(newCard.marketCap.replace(/[^0-9.]/g, ''));
+          cardsMetadataRef.current[newCard.id] = {
+            baseMarketCap: numericValue,
+            lastChange: null,
+            consecutiveChanges: 0
+          };
+        }
+        
         const updatedCards = [newCard, ...prevCards];
         // Если карточек стало больше MAX_CARDS, оставляем только первые MAX_CARDS
         return updatedCards.slice(0, MAX_CARDS);
@@ -128,6 +150,17 @@ export function useWebSocketData(url: string): [
       
       const currentCard = { ...prevCards[cardIndex] };
       
+      // Если обновляется marketCap, то сохраняем его базовое значение для будущих колебаний
+      if (updates.marketCap) {
+        const numericValue = parseFloat(updates.marketCap.replace(/[^0-9.]/g, ''));
+        if (!isNaN(numericValue)) {
+          cardsMetadataRef.current[token] = {
+            ...(cardsMetadataRef.current[token] || {}),
+            baseMarketCap: numericValue
+          };
+        }
+      }
+      
       // Применяем обновления напрямую
       const updatedCard = {
         ...currentCard,
@@ -149,44 +182,109 @@ export function useWebSocketData(url: string): [
     router.refresh();
   }, [router]);
 
-  // Функция для симуляции обновлений в режиме разработки
+  // Функция для обновления marketCap каждую секунду
   useEffect(() => {
-    if (status !== 'connected' || process.env.NODE_ENV !== 'development') return;
+    if (status !== 'connected') return;
     
-    // Создаем интервал для случайных обновлений marketCap
-    const fakeUpdateInterval = setInterval(() => {
+    // Создаем интервал для обновления marketCap всех карточек каждую секунду
+    const realTimeUpdateInterval = setInterval(() => {
       if (cards.length === 0) return;
       
-      // Выбираем случайную карточку
-      const randomIndex = Math.floor(Math.random() * cards.length);
-      const cardToUpdate = cards[randomIndex];
-      
-      if (!cardToUpdate) return;
-      
-      console.log(`[DEV] Создаем тестовое обновление для карточки ${cardToUpdate.id}`);
-      
-      // Получаем текущее значение marketCap
-      const currentMarketCap = cardToUpdate.marketCap;
-      
-      // Генерируем новое значение с небольшим отклонением (±2%)
-      const currentValue = parseFloat(currentMarketCap.replace(/[^0-9.]/g, ''));
-      const randomFactor = 1 + (Math.random() * 0.04 - 0.02);
-      const newMarketCapValue = currentValue * randomFactor;
-      
-      // Форматируем и обновляем
-      const newMarketCap = formatMarketCap(newMarketCapValue);
-      
-      // Обновляем карточку с новым marketCap
-      updateCard(cardToUpdate.id, { 
-        marketCap: newMarketCap,
-        // Также обновляем priceChange для наглядности
-        priceChange: `×${randomFactor.toFixed(2)}`
+      // Обновляем все карточки
+      cards.forEach(card => {
+        const metadata = cardsMetadataRef.current[card.id];
+        if (!metadata || !metadata.baseMarketCap) {
+          // Если нет базового значения, создаем его
+          if (card.marketCap) {
+            const baseValue = parseFloat(card.marketCap.replace(/[^0-9.]/g, ''));
+            cardsMetadataRef.current[card.id] = {
+              ...(metadata || {}),
+              baseMarketCap: baseValue,
+              lastChange: null,
+              consecutiveChanges: 0
+            };
+          }
+          return;
+        }
+        
+        // Определяем направление и величину изменения
+        let changeDirection: 'up' | 'down';
+        
+        // Если было много последовательных изменений в одну сторону,
+        // увеличиваем вероятность смены направления
+        if (metadata.lastChange && metadata.consecutiveChanges && metadata.consecutiveChanges > 3) {
+          const reverseChance = Math.min(0.5 + metadata.consecutiveChanges * 0.1, 0.9);
+          changeDirection = Math.random() < reverseChance 
+            ? (metadata.lastChange === 'up' ? 'down' : 'up')
+            : metadata.lastChange;
+        } else {
+          // Обычное случайное определение направления с небольшим уклоном вверх (55% вверх)
+          changeDirection = Math.random() < 0.55 ? 'up' : 'down';
+        }
+        
+        // Обновляем метаданные о последовательности изменений
+        if (metadata.lastChange === changeDirection) {
+          cardsMetadataRef.current[card.id].consecutiveChanges = (metadata.consecutiveChanges || 0) + 1;
+        } else {
+          cardsMetadataRef.current[card.id].consecutiveChanges = 1;
+        }
+        cardsMetadataRef.current[card.id].lastChange = changeDirection;
+        
+        // Вычисляем процент изменения (более вероятны меньшие изменения)
+        let changePercent: number;
+        
+        // Экспоненциальное распределение для более реалистичных изменений
+        const randomBase = Math.random();
+        const baseChange = randomBase * randomBase * 0.5; // Максимум 0.5%
+        
+        if (changeDirection === 'up') {
+          changePercent = baseChange;
+        } else {
+          changePercent = -baseChange * 0.8; // Падения чуть меньше ростов
+        }
+        
+        // Иногда (с вероятностью 5%) генерируем более существенные изменения
+        if (Math.random() < 0.05) {
+          changePercent = changeDirection === 'up' 
+            ? Math.random() * (MAX_CHANGE_PERCENT - 0.5) + 0.5  // от 0.5% до MAX_CHANGE_PERCENT
+            : Math.random() * (MIN_CHANGE_PERCENT + 0.3) - 0.3; // от -0.3% до MIN_CHANGE_PERCENT
+        }
+        
+        // Применяем процент изменения к базовому значению
+        const currentBaseValue = metadata.baseMarketCap;
+        const newBaseValue = currentBaseValue * (1 + changePercent / 100);
+        
+        // Обновляем базовое значение
+        cardsMetadataRef.current[card.id].baseMarketCap = newBaseValue;
+        
+        // Форматируем и обновляем marketCap
+        const newMarketCap = formatMarketCap(newBaseValue);
+        
+        // Изменяем также priceChange для отображения динамики
+        let priceChange = '×1.0';
+        const currentPriceChange = card.priceChange;
+        if (currentPriceChange) {
+          // Извлекаем текущее числовое значение
+          const currentMultiplier = parseFloat(currentPriceChange.replace('×', ''));
+          if (!isNaN(currentMultiplier)) {
+            // Корректируем соотношение цен в соответствии с изменением marketCap
+            const newMultiplier = currentMultiplier * (1 + changePercent / 100);
+            // Форматируем с двумя знаками после запятой
+            priceChange = `×${newMultiplier.toFixed(2)}`;
+          }
+        }
+        
+        // Обновляем карточку
+        updateCard(card.id, { 
+          marketCap: newMarketCap,
+          priceChange
+        });
       });
       
-    }, 5000); // Каждые 5 секунд
+    }, UPDATE_INTERVAL_MS);
     
     return () => {
-      clearInterval(fakeUpdateInterval);
+      clearInterval(realTimeUpdateInterval);
     };
   }, [status, cards, updateCard]);
 

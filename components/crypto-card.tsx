@@ -422,14 +422,54 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
           setMarketCapClass('value-decrease market-cap-realtime');
         }
         
+        // Пульсация для частых обновлений (сброс класса через короткое время)
         setTimeout(() => {
           setMarketCapClass('market-cap-realtime');
-        }, 700);
+        }, 500);
         
         setPrevMarketCap(data.marketCap);
       }
     }
   }, [data, data?._updateId]);
+
+  // Добавляем гистограмму для наглядного отображения изменений
+  const renderMarketCapWithChart = (marketCapValue: string) => {
+    // Используем обычный рендер, если нет истории изменений
+    if (!marketCapClass) {
+      return (
+        <div className="text-center font-medium mb-1">
+          {renderValueChange(marketCapValue || '', 'marketCap')}
+        </div>
+      );
+    }
+    
+    // Визуализация с индикатором изменения для частых обновлений
+    const directionClass = priceDirection === 'increase' ? 'text-green-400' : 
+                          priceDirection === 'decrease' ? 'text-red-400' : '';
+    
+    const arrowIcon = priceDirection === 'increase' ? '↑' :
+                     priceDirection === 'decrease' ? '↓' : '';
+                         
+    return (
+      <div>
+        <div className={`flex items-center justify-center ${marketCapClass}`}>
+          {arrowIcon && <span className={`text-xs font-bold mr-1 ${directionClass}`}>{arrowIcon}</span>}
+          {renderValueChange(marketCapValue || '', 'marketCap')}
+        </div>
+        
+        {/* Визуальный индикатор - маленькая полоска, показывающая активность обновлений */}
+        <div className="w-full h-0.5 bg-gray-800 mt-1 rounded-full overflow-hidden">
+          <div 
+            className={`h-full ${priceDirection === 'increase' ? 'bg-green-500' : 'bg-red-500'} transition-all duration-500`}
+            style={{ 
+              width: `${priceDirection ? '100%' : '0%'}`, 
+              opacity: marketCapClass.includes('market-cap-pulse') ? 1 : 0.5
+            }}
+          />
+        </div>
+      </div>
+    );
+  };
 
   if (loading || !displayData) {
     return (
@@ -554,9 +594,7 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
             
             <div className="grid grid-cols-3 gap-x-2 gap-y-2 text-xs">
               <div className="flex flex-col items-center p-2 rounded-lg border border-green-800/40 bg-gray-900/30 backdrop-blur-sm">
-                <div className="text-center font-medium mb-1">
-                  {renderValueChange(displayData?.marketCap || '', 'marketCap')}
-                </div>
+                {renderMarketCapWithChart(displayData?.marketCap || '')}
                 <div className="flex items-center text-gray-400 text-[10px]">
                   <span className="mr-1 text-amber-500">💎</span>
                   <span>Market Cap</span>
