@@ -13,6 +13,7 @@ interface WebSocketContextType {
   reconnect: () => void;
   disconnect: () => void;
   updateCard: (token: string, updates: Partial<CryptoCardType>) => void; 
+  forceRefresh: () => void;
 }
 
 
@@ -22,7 +23,8 @@ const WebSocketContext = createContext<WebSocketContextType>({
   error: null,
   reconnect: () => {},
   disconnect: () => {},
-  updateCard: () => {}, 
+  updateCard: () => {},
+  forceRefresh: () => {},
 });
 
 
@@ -40,9 +42,16 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 }) => {
   console.log('[WebSocketContext] Инициализация провайдера');
   
+  const updateCountRef = useRef(0);
+  
+  const [refreshCounter, setRefreshCounter] = React.useState(0);
+  const forceRefresh = React.useCallback(() => {
+    updateCountRef.current++;
+    console.log(`[WebSocketContext] Принудительное обновление #${updateCountRef.current}`);
+    setRefreshCounter(prev => prev + 1);
+  }, []);
 
   const [status, cards, error, { reconnect, disconnect }, updateCard] = useWebSocketData(url);
-  
 
   const contextValue = useMemo(() => ({
     status,
@@ -51,7 +60,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     reconnect,
     disconnect,
     updateCard,
-  }), [status, cards, error, reconnect, disconnect, updateCard]);
+    forceRefresh,
+  }), [status, cards, error, reconnect, disconnect, updateCard, forceRefresh, refreshCounter]);
   
   
   const prevCardsCountRef = useRef(cards.length);
@@ -62,6 +72,16 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       prevCardsCountRef.current = currentCount;
     }
   }, [cards.length]);
+  
+  useEffect(() => {
+    console.log(`[WebSocketContext] Текущее состояние: ${status}, карточек: ${cards.length}`);
+    
+    if (cards.length > 0) {
+      cards.forEach(card => {
+        console.log(`[WebSocketContext] Карточка ${card.id}: marketCap=${card.marketCap}`);
+      });
+    }
+  }, [cards, status, refreshCounter]);
   
   return (
     <WebSocketContext.Provider value={contextValue}>

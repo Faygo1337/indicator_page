@@ -104,3 +104,129 @@
   background-size: 200% 100%;
   animation: pulseGradient 2s ease infinite;
 }
+
+/* Новые анимации для плавного обновления числовых значений */
+@keyframes valueFlicker {
+  0% { opacity: 1; }
+  25% { opacity: 0.7; }
+  50% { opacity: 0.9; }
+  75% { opacity: 0.8; }
+  100% { opacity: 1; }
+}
+
+@keyframes valueUpdate {
+  0% { 
+    transform: scale(1);
+    text-shadow: 0 0 0px rgba(74, 222, 128, 0);
+  }
+  50% { 
+    transform: scale(1.05);
+    text-shadow: 0 0 5px rgba(74, 222, 128, 0.6);
+  }
+  100% { 
+    transform: scale(1);
+    text-shadow: 0 0 0px rgba(74, 222, 128, 0);
+  }
+}
+
+.value-updating {
+  animation: valueUpdate 0.5s ease;
+}
+
+.market-cap-pulse {
+  animation: valueFlicker 1.5s ease-in-out;
+  transition: color 0.3s ease;
+}
+
+/* Анимация увеличения значения */
+.value-increase {
+  color: #4ade80;
+  animation: valueUpdate 0.7s ease;
+}
+
+/* Анимация уменьшения значения */
+.value-decrease {
+  color: #f87171;
+  animation: valueUpdate 0.7s ease;
+}
+
+/* Анимация подсветки всей карточки */
+@keyframes cardUpdate {
+  0% {
+    box-shadow: 0 0 0 rgba(74, 222, 128, 0);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(74, 222, 128, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(74, 222, 128, 0);
+  }
+}
+
+.card-updating {
+  animation: cardUpdate 2s ease;
+}
+
+/* Анимация числового тикера */
+@keyframes digitTicker {
+  0% { 
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  20% { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+  80% { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% { 
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+.digit-ticker-container {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  height: 1.2em;
+}
+
+.digit-ticker {
+  position: absolute;
+  animation: digitTicker 0.5s ease forwards;
+}
+
+/* Пульсирующий текст для активного обновления */
+@keyframes textPulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+.text-pulsing {
+  animation: textPulse 1.5s ease infinite;
+}
+
+/* Анимация для реального изменения рыночной капитализации */
+.market-cap-realtime {
+  transition: color 0.3s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.market-cap-realtime::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, rgba(74, 222, 128, 0.05), rgba(74, 222, 128, 0.15), rgba(74, 222, 128, 0.05));
+  background-size: 200% 100%;
+  animation: gradientMove 2s ease infinite;
+  z-index: -1;
+  border-radius: 0.25rem;
+}
