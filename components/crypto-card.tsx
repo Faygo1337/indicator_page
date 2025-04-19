@@ -10,6 +10,7 @@ import {
   MessageCircle,
   Check,
   BarChart3,
+  X,
 } from "lucide-react";
 import GMGNLogo from "@/public/gmgnLogo.png";
 import bloomLogo from "@/public/bloomLogo.jpg";
@@ -34,8 +35,6 @@ import {
 import { useLastActivity } from '@/lib/hooks/useLastActivity';
 import { useWebSocket } from "@/lib/context/WebSocketContext";
 import { formatNumber, extractNumericValue, formatMarketCap } from "@/lib/utils";
-import { useSelector } from 'react-redux';
-import { RootState } from '@/lib/store/store';
 
 // Расширенный тип для поддержки метаданных обновления
 interface ExtendedCryptoCard extends CryptoCardType {
@@ -292,12 +291,8 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
     return <div className={getUpdateStyle('tokenAge')}>{tokenAge}</div>;
   };
 
-  const cardData = useSelector((state: RootState) => 
-    data?.id ? state.cards.cards[data.id] : null
-  );
-
   // Используем cardData вместо data для отображения
-  const displayData = cardData || data;
+  const displayData = data;
 
   useEffect(() => {
     if (data?._updateId) {
@@ -591,8 +586,7 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
                     asChild
                   >
                     <a
-                      href=""
-                      // href={displayData.socialLinks.telegram}
+                      href={displayData.socialLinks.telegram}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -615,7 +609,7 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      <Twitter className="h-3 w-3" />
+                      <X className="h-3 w-3" />
                       <span className="sr-only">Twitter</span>
                     </a>
                   </Button>

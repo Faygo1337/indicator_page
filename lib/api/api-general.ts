@@ -734,19 +734,14 @@ class ApiGeneralService {
 
     // Преобразуем транзакции в формат китов, если они есть
     const whales = signal.trades && signal.trades.length > 0
-      ? signal.trades.slice(0, 3).map(trade => {
-          // Используем адрес кошелька для идентификации
-          const signerAddress = trade.signer;
-          // В поле count передаем адрес кошелька
-          return {
-            count: signerAddress, // Сам адрес будет обработан на клиенте
-            amount: `${Math.round(trade.amountSol * 100) / 100} SOL`
-          };
-        })
+      ? signal.trades.slice(0, 3).map(trade => ({
+          count: Math.floor(Math.random() * 50) + 10, // Генерируем случайное число для count
+          amount: `${Math.round(trade.amtSol * 100) / 100} SOL`
+        }))
       : [
-          { count: "Addr1...Aabc", amount: "1.25 SOL" },
-          { count: "Bbcd...Def2", amount: "0.85 SOL" },
-          { count: "Cdef...Fgh3", amount: "0.55 SOL" }
+          { count: 45, amount: "1.25 SOL" },
+          { count: 30, amount: "0.85 SOL" },
+          { count: 15, amount: "0.55 SOL" }
         ];
 
     // Создаем объект карточки с готовыми данными
@@ -810,14 +805,10 @@ class ApiGeneralService {
     
     // Обновляем сделки, если они есть
     if (update.trades && update.trades.length > 0) {
-      result.whales = update.trades.slice(0, 3).map(trade => {
-        // Используем адрес кошелька для идентификации
-        const signerAddress = trade.signer;
-        return {
-          count: signerAddress,
-          amount: `${Math.round(trade.amountSol * 100) / 100} SOL`
-        };
-      });
+      result.whales = update.trades.slice(0, 3).map(trade => ({
+        count: Math.floor(Math.random() * 30) + 10,
+        amount: `${Math.round(trade.amtSol * 100) / 100} SOL`
+      }));
     }
     
     return result;

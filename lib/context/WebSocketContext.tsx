@@ -3,9 +3,6 @@
 import React, { createContext, useContext, ReactNode, useRef, useEffect, useMemo } from 'react';
 import { useWebSocketData } from '@/lib/hooks/useWebSocketData';
 import { CryptoCard as CryptoCardType } from '@/lib/api/types';
-import { useDispatch } from 'react-redux';
-import { addCard as addCardAction, updateCard as updateCardAction } from '@/lib/store/cardsSlice';
-import { webSocketClient } from '@/lib/api/api-general';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,7 +40,6 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 }) => {
   console.log('[WebSocketContext] Инициализация провайдера');
   
-  const dispatch = useDispatch();
 
   const [status, cards, error, { reconnect, disconnect }, updateCard] = useWebSocketData(url);
   
@@ -66,16 +62,6 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       prevCardsCountRef.current = currentCount;
     }
   }, [cards.length]);
-
-  useEffect(() => {
-    webSocketClient.onNewSignal((data) => {
-      dispatch(addCardAction(data));
-    });
-
-    webSocketClient.onUpdateSignal((token, updates) => {
-      dispatch(updateCardAction({ token, updates }));
-    });
-  }, [dispatch]);
   
   return (
     <WebSocketContext.Provider value={contextValue}>

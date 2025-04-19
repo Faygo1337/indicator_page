@@ -4,7 +4,6 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 // import { ThemeProvider } from "../components/theme-provider";
 import { WebSocketProvider } from "@/lib/context/WebSocketContext";
-import { Providers } from '@/lib/providers';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -23,11 +22,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} bg-background text-foreground`}>
-        <Providers>
-          <WebSocketProvider>
-            {children}
-          </WebSocketProvider>
-        </Providers>
+        {/* <ThemeProvider attribute="class" defaultTheme="dark"> */}
+        <WebSocketProvider>
+        {children}
+        </WebSocketProvider>
         {/* </ThemeProvider> */}
       </body>
     </html>
