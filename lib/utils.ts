@@ -137,136 +137,135 @@ export function extractNumericValue(formattedValue?: string): number {
 }
 
 /**
- * Форматирует число с разделителями групп разрядов
+ * Форматирует число с десятичным разделителем "." и без группировки
  */
-export function formatNumber(value: number | string, options: {
-  isPercent?: boolean;
-  decimals?: number;
-  prefix?: string;
-} = {}): string {
+export function formatNumber(
+  value: number | string,
+  options: { isPercent?: boolean; decimals?: number; prefix?: string } = {}
+): string {
   const { isPercent = false, decimals = isPercent ? 2 : 5, prefix = isPercent ? '' : '$' } = options;
-  
-  // Преобразуем входное значение в число
-  const numValue = typeof value === 'string' ? extractNumericValue(value) : value;
-  
-  if (isNaN(numValue)) return typeof value === 'string' ? value : '0';
-  
-  // Форматируем с разделителями тысяч
-  const formatter = new Intl.NumberFormat('ru-RU', {
+  const num = typeof value === 'string' ? extractNumericValue(value) : value;
+  if (isNaN(num)) return typeof value === 'string' ? value : '0';
+  const formatter = new Intl.NumberFormat('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
+    useGrouping: false,
   });
-  
-  const formattedValue = formatter.format(numValue);
-  
-  // Добавляем символы
-  return `${prefix}${formattedValue}${isPercent ? '%' : ''}`;
+  const str = formatter.format(num);
+  return `${prefix}${str}${isPercent ? '%' : ''}`;
 }
 
 /**
- * Форматирует значение Market Cap с суффиксами K, M, B
- * Например: $320.22K, $3.2M, $5.67B
+ * Форматирует marketCap:
+ * - <1000 → целое ($999)
+ * - ≥1K → с суффиксом K/M/B, две десятичные, точка
  */
 export function formatMarketCap(value: number | string): string {
-  // Преобразуем входное значение в число
-  const numValue = typeof value === 'string' ? extractNumericValue(value) : value;
-  
-  if (isNaN(numValue)) return typeof value === 'string' ? value : '$0';
-  
-  // Если значение меньше 1000, округляем до целого
-  if (numValue < 1000) {
-    return `$${Math.round(numValue)}`;
+  const num = typeof value === 'string' ? extractNumericValue(value) : value;
+  if (isNaN(num)) return typeof value === 'string' ? value : '$0';
+  if (num < 1000) return `$${Math.round(num)}`;
+
+  let suffix: 'K' | 'M' | 'B' = 'K';
+  let divider = 1e3;
+  if (num >= 1e9) {
+    suffix = 'B'; divider = 1e9;
+  } else if (num >= 1e6) {
+    suffix = 'M'; divider = 1e6;
   }
-  
-  // Определяем суффикс и делитель
-  let suffix = '';
-  let divider = 1;
-  
-  if (numValue >= 1000000000) {
-    suffix = 'B';
-    divider = 1000000000;
-  } else if (numValue >= 1000000) {
-    suffix = 'M';
-    divider = 1000000;
-  } else {
-    suffix = 'K';
-    divider = 1000;
-  }
-  
-  // Вычисляем значение после деления
-  const scaledValue = numValue / divider;
-  
-  // Определяем количество десятичных знаков на основе значения
-  let decimals = 2;
-  if (scaledValue >= 100) {
-    decimals = 1; // Для больших чисел меньше десятичных знаков
-  } else if (scaledValue < 10) {
-    decimals = 2; // Для малых чисел больше десятичных знаков
-  }
-  
-  // Форматируем число с фиксированным количеством десятичных знаков
-  const formattedValue = scaledValue.toFixed(decimals);
-  
-  // Убираем лишние нули после запятой (например, 3.20M -> 3.2M)
-  const cleanedValue = formattedValue.replace(/\.?0+$/, '');
-  
-  return `$${cleanedValue}${suffix}`;
+  // два знака после точки
+  let str = (num / divider).toFixed(2);
+  // убрать лишние нули
+  str = str.replace(/\.0+$/, '').replace(/(\.[1-9])0+$/, '$1');
+  return `$${str}${suffix}`;
 }
 
 /**
- * Преобразует строку возраста токена в количество секунд
- * Поддерживаемые форматы: "10d", "5h 30m", "2d 5h", "30s"
- * @param tokenAge строка с возрастом токена
- * @returns количество секунд или 0, если формат некорректен
+ * Преобразует строку с возрастом токена в секунды
+ * Поддерживаемые форматы: "10d", "5h 30m", "1d 12h", "new", "N/A", "24s" и т.д.
+ * @param ageString строка с возрастом токена
+ * @returns количество секунд или 0 для новых токенов
  */
-export function parseTokenAge(tokenAge?: string): number {
-  if (!tokenAge || tokenAge === "N/A") return 0;
+export function parseTokenAge(ageString: string): number {
+  if (!ageString) return 0;
   
-  // Количество секунд
-  let seconds = 0;
-  
-  // Проверяем формат "10d" (только дни)
-  const daysMatch = tokenAge.match(/^(\d+)d$/);
-  if (daysMatch) {
-    return parseInt(daysMatch[1]) * 86400; // 1 день = 86400 секунд
+  // Проверка на пустую строку или неподдерживаемые форматы
+  if (!ageString || ageString.trim() === "" || 
+      ageString.toLowerCase() === "new" || 
+      ageString === "N/A") {
+    return 0;
   }
-  
-  // Проверяем формат "10" (предполагаем, что это дни)
-  const numericMatch = tokenAge.match(/^(\d+)$/);
-  if (numericMatch) {
-    return parseInt(numericMatch[1]) * 86400;
+
+  // Проверяем формат "×N" (множитель)
+  if (ageString.includes('×')) {
+    console.warn(`Формат множителя не поддерживается для возраста токена: ${ageString}`);
+    return 0; // Возвращаем 0, чтобы не влиять на сортировку
   }
-  
-  // Проверяем формат "5h 30m" (часы и минуты)
-  const hoursMinutesMatch = tokenAge.match(/^(\d+)h\s+(\d+)m$/);
-  if (hoursMinutesMatch) {
-    const hours = parseInt(hoursMinutesMatch[1]);
-    const minutes = parseInt(hoursMinutesMatch[2]);
-    return hours * 3600 + minutes * 60;
-  }
-  
-  // Проверяем формат "2d 5h" (дни и часы)
-  const daysHoursMatch = tokenAge.match(/^(\d+)d\s+(\d+)h$/);
-  if (daysHoursMatch) {
-    const days = parseInt(daysHoursMatch[1]);
-    const hours = parseInt(daysHoursMatch[2]);
-    return days * 86400 + hours * 3600;
-  }
-  
-  // Если другой формат - пытаемся извлечь все числа и единицы измерения
-  const patterns = [
-    { regex: /(\d+)d/, multiplier: 86400 }, // дни
-    { regex: /(\d+)h/, multiplier: 3600 },  // часы
-    { regex: /(\d+)m/, multiplier: 60 },    // минуты
-    { regex: /(\d+)s/, multiplier: 1 }      // секунды
-  ];
-  
-  patterns.forEach(pattern => {
-    const match = tokenAge.match(pattern.regex);
-    if (match) {
-      seconds += parseInt(match[1]) * pattern.multiplier;
+
+  try {
+    let totalSeconds = 0;
+    
+    // Регулярное выражение для захвата всех временных интервалов (цифра + единица измерения)
+    const timePattern = /(\d+)\s*([dhms])/gi;
+    let match;
+    let foundMatch = false;
+    
+    // Поиск всех совпадений времени в строке
+    while ((match = timePattern.exec(ageString)) !== null) {
+      foundMatch = true;
+      const value = parseInt(match[1], 10);
+      const unit = match[2].toLowerCase();
+      
+      if (!isNaN(value)) {
+        switch (unit) {
+          case 'd':
+            totalSeconds += value * 86400; // дни в секунды
+            break;
+          case 'h':
+            totalSeconds += value * 3600; // часы в секунды
+            break;
+          case 'm':
+            totalSeconds += value * 60; // минуты в секунды
+            break;
+          case 's':
+            totalSeconds += value; // секунды
+            break;
+          default:
+            console.warn(`Неизвестная единица измерения времени: ${unit} в строке: ${ageString}`);
+        }
+      }
     }
-  });
-  
-  return seconds;
+    
+    // Если не нашли ни одного совпадения с форматом времени, пробуем интерпретировать как число
+    if (!foundMatch) {
+      // Пытаемся извлечь число из строки
+      const numericMatch = ageString.match(/(\d+(\.\d+)?)/);
+      if (numericMatch && numericMatch[1]) {
+        const numValue = parseFloat(numericMatch[1]);
+        if (!isNaN(numValue)) {
+          // Предполагаем, что это число в днях
+          totalSeconds = numValue * 86400;
+          console.log(`Интерпретируем "${ageString}" как ${numValue} дней (${totalSeconds} секунд)`);
+        }
+      } else {
+        console.warn(`Неподдерживаемый формат возраста токена: ${ageString}`);
+        return 0;
+      }
+    }
+    
+    // Проверка на валидность результата
+    if (totalSeconds < 0) {
+      console.warn(`Получено отрицательное значение времени из строки: ${ageString}`);
+      return 0;
+    }
+    
+    return totalSeconds;
+  } catch (error) {
+    console.error(`Ошибка при парсинге возраста токена "${ageString}":`, error);
+    return 0;
+  }
 }
+
+export const getJwtFromStorage = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('whales_trace_token');
+};

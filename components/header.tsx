@@ -84,7 +84,9 @@ export function Header({
               <DropdownMenuContent align="end">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <DropdownMenuItem onClick={() => setPageDialogOpen(true)}>
+                    <DropdownMenuItem
+                      className="bg-white bg-opacity-20 text-white cursor-default pointer-events-none"
+                    >
                       Dashboard
                     </DropdownMenuItem>
                   </TooltipTrigger>
@@ -93,21 +95,27 @@ export function Header({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <DropdownMenuItem onClick={() => setPageDialogOpen(true)}>
-                      Analytics
+                      Referral
                     </DropdownMenuItem>
                   </TooltipTrigger>
-                  <TooltipContent>Analytics</TooltipContent>
+                  <TooltipContent>Referral</TooltipContent>
                 </Tooltip>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         ) : (
           <div className="flex items-center lg:space-x-6">
-            <Button variant="ghost" onClick={() => setPageDialogOpen(true)}>
-              Dashboard
+            <Button
+              variant="ghost"
+              disabled
+
+            >
+              <span className="!bg-white !bg-opacity-[0.2] text-white pointer-events-none px-4 py-2 rounded-md">
+                Dashboard
+              </span>
             </Button>
             <Button variant="ghost" onClick={() => setPageDialogOpen(true)}>
-              Analytics
+              Referral
             </Button>
           </div>
         )}

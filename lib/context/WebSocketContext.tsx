@@ -38,7 +38,7 @@ interface WebSocketProviderProps {
 
 export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ 
   children,
-  url = 'wss://whales.trace.foundation/api/stream' 
+  // url = 'wss://whales.trace.foundation/api/stream' 
 }) => {
   console.log('[WebSocketContext] Инициализация провайдера');
   
@@ -51,7 +51,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     setRefreshCounter(prev => prev + 1);
   }, []);
 
-  const [status, cards, error, { reconnect, disconnect }, updateCard] = useWebSocketData(url);
+  const [status, cards, error, { reconnect, disconnect }, updateCard] = useWebSocketData();
 
   const contextValue = useMemo(() => ({
     status,
@@ -61,7 +61,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     disconnect,
     updateCard,
     forceRefresh,
-  }), [status, cards, error, reconnect, disconnect, updateCard, forceRefresh, refreshCounter]);
+  }), [status, cards, error, reconnect, disconnect, updateCard, forceRefresh]);
   
   
   const prevCardsCountRef = useRef(cards.length);

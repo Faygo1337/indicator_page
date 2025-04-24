@@ -1,12 +1,11 @@
 "use client";
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import {
   Copy,
   ArrowUpRight,
   ArrowDownRight,
   Globe,
-  Twitter,
   MessageCircle,
   Check,
   BarChart3,
@@ -26,16 +25,26 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { CryptoCard as CryptoCardType } from "@/lib/api/types";
-import { useTrackedData, useDebounce } from "@/lib/hooks/useForceUpdate";
+import { useTrackedData } from "@/lib/hooks/useForceUpdate";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-import { useLastActivity } from '@/lib/hooks/useLastActivity';
+// import { useLastActivity } from '@/lib/hooks/useLastActivity';
 import { useWebSocket } from "@/lib/context/WebSocketContext";
-import { formatNumber, extractNumericValue, formatMarketCap } from "@/lib/utils";
+import {
+  formatNumber,
+  extractNumericValue,
+  parseTokenAge as parseAgeUtil,
+} from "@/lib/utils";
 
+import InsidersIcon from "@/public/insiders-icon.svg";
+import MarketCapIcon from "@/public/marketcap-icon.svg";
+import TokenAgeIcon from "@/public/tokenage-icon.svg";
+import First70Icon from "@/public/first70-icon.svg";
+import DevWalletIcon from "@/public/devwallet-icon.svg";
+import Top10Icon from "@/public/top10-icon.svg";
 // Расширенный тип для поддержки метаданных обновления
 interface ExtendedCryptoCard extends CryptoCardType {
   _receivedAt?: number;
@@ -52,183 +61,219 @@ interface CryptoCardProps {
 const ANIMATION_DURATION = 1000; // 1 секунда для анимации
 
 // Функция для расчета коэффициента изменения цены
-const calculatePriceRatio = (currentMarketCap: string, previousMarketCap?: string): number => {
-  if (!previousMarketCap) return 1;
-  
-  // Извлекаем числовые значения из строк с форматированием
-  const currentValue = extractNumericValue(currentMarketCap);
-  const previousValue = extractNumericValue(previousMarketCap);
-  
-  if (isNaN(currentValue) || isNaN(previousValue) || previousValue === 0) {
-    return 1;
-  }
-  
-  // Рассчитываем отношение
-  return currentValue / previousValue;
-};
+// const calculatePriceRatio = (currentMarketCap: string, previousMarketCap?: string): number => {
+//   if (!previousMarketCap) return 1;
 
-export function CryptoCard({ data, loading = false, animate = true }: CryptoCardProps) {
+//   // Извлекаем числовые значения из строк с форматированием
+//   const currentValue = extractNumericValue(currentMarketCap);
+//   const previousValue = extractNumericValue(previousMarketCap);
+
+//   if (isNaN(currentValue) || isNaN(previousValue) || previousValue === 0) {
+//     return 1;
+//   }
+
+//   // Рассчитываем отношение
+//   return currentValue / previousValue;
+// };
+
+export function CryptoCard({
+  data,
+  loading = false,
+  animate = true,
+}: CryptoCardProps) {
   const [copied, setCopied] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [prevData, setPrevData] = useState<ExtendedCryptoCard | null>(null);
   const [animateFields, setAnimateFields] = useState<Record<string, boolean>>({});
   const [isUpdating, setIsUpdating] = useState(false);
-  const [marketCapClass, setMarketCapClass] = useState('');
-  const [priceDirection, setPriceDirection] = useState<'increase' | 'decrease' | ''>('');
-  
+  const [marketCapClass, setMarketCapClass] = useState("");
+  const [priceDirection, setPriceDirection] = useState<"increase" | "decrease" | "" >("");
+ 
   // Для отслеживания изменений для анимации
   const lastMarketCapRef = useRef<string | undefined>(undefined);
   const renderCountRef = useRef(0);
-  
+
   // Используем хук для отслеживания изменений данных с правильным типом
-  const [trackedData, forceUpdateImmediate] = useTrackedData<ExtendedCryptoCard>(data || null);
-  
+  const [trackedData, forceUpdateImmediate] =
+    useTrackedData<ExtendedCryptoCard>(data || null);
+
   // Получаем статус соединения и данные из WebSocket контекста
   const wsContextData = useWebSocket();
-  const isConnected = wsContextData.status === 'connected';
-  
+  const isConnected = wsContextData.status === "connected";
+
   // Находим данные из контекста, соответствующие карточке
-  const wsCardData = useMemo(() => {
-    if (!data?.id) return null;
-    return wsContextData.cards.find(card => card.id === data.id);
-  }, [wsContextData.cards, data?.id]);
+  // const wsCardData = useMemo(() => {
+  //   if (!data?.id) return null;
+  //   return wsContextData.cards.find(card => card.id === data.id);
+  // }, [wsContextData.cards, data?.id]);
+  const wsCardData = wsContextData.cards.find((card) => card.id === data?.id);
   
+  const displayData = wsCardData ?? data;
+
+  // Формируем корректный URL для X (twitter)
+  const twitterRaw = displayData?.socialLinks.twitter ?? '';
+  const twitterHref = twitterRaw
+    ? twitterRaw.startsWith('http')
+      ? twitterRaw
+      : `https://x.com/${twitterRaw}`
+    : '';
+
   // Отслеживаем предыдущие значения для анимации
   useEffect(() => {
     if (trackedData && (!prevData || prevData.id !== trackedData.id)) {
-      setPrevData({...trackedData});
+      setPrevData({ ...trackedData });
     }
   }, [trackedData, prevData]);
-  
+
   // Для хранения предыдущего значения marketCap
-  const [prevMarketCap, setPrevMarketCap] = useState<string | undefined>(undefined);
-  
+  // const [prevMarketCap, setPrevMarketCap] = useState<string | undefined>(undefined);
+
   // Добавляем пустой useEffect для renderCountRef
   useEffect(() => {
     renderCountRef.current++;
   }, []);
-  
+
   // Добавляем восстановленную функциональность эффекта обработки изменений marketCap
   // Отслеживаем изменения marketCap для вычисления соотношения
   useEffect(() => {
-    if (wsCardData?.marketCap && wsCardData.marketCap !== trackedData?.marketCap) {
+    if (
+      wsCardData?.marketCap &&
+      wsCardData.marketCap !== trackedData?.marketCap
+    ) {
       // Проверяем изменение значения для анимации
-      const prevValue = extractNumericValue(trackedData?.marketCap || '0');
+      const prevValue = extractNumericValue(trackedData?.marketCap || "0");
       const currValue = extractNumericValue(wsCardData.marketCap);
-      
+
       if (currValue > prevValue) {
-        setPriceDirection('increase');
-        setMarketCapClass('market-cap-increase market-cap-realtime');
+        setPriceDirection("increase");
+        setMarketCapClass("market-cap-increase market-cap-realtime");
       } else if (currValue < prevValue) {
-        setPriceDirection('decrease');
-        setMarketCapClass('market-cap-decrease market-cap-realtime');
+        setPriceDirection("decrease");
+        setMarketCapClass("market-cap-decrease market-cap-realtime");
       }
-      
+
       // Сбрасываем класс анимации через некоторое время
       setTimeout(() => {
-        setMarketCapClass('market-cap-realtime');
+        setMarketCapClass("market-cap-realtime");
       }, 800);
-      
+
       // Рассчитываем коэффициент изменения
-      const ratio = calculatePriceRatio(wsCardData.marketCap, trackedData?.marketCap);
-      const priceChangeText = `×${ratio.toFixed(2)}`;
-      
+      // const ratio = calculatePriceRatio(wsCardData.marketCap, trackedData?.marketCap);
+      // const priceChangeText = `×${ratio.toFixed(2)}`;
+
       // Принудительно обновляем карточку
       forceUpdateImmediate();
     }
   }, [wsCardData?.marketCap, trackedData?.marketCap, forceUpdateImmediate]);
-  
+
   // Удаляем отладочную информацию из эффекта обновлений в реальном времени
   useEffect(() => {
-    if (data?._updateId && data._updateId.includes('update-marketcap') && lastMarketCapRef.current !== data.marketCap) {
+    if (
+      data?._updateId &&
+      data._updateId.includes("update-marketcap") &&
+      lastMarketCapRef.current !== data.marketCap
+    ) {
       // Для обновлений Market Cap из интервала анимации
-      const prevValue = extractNumericValue(lastMarketCapRef.current || '0');
-      const currValue = extractNumericValue(data.marketCap || '0');
-      
+      const prevValue = extractNumericValue(lastMarketCapRef.current || "0");
+      const currValue = extractNumericValue(data.marketCap || "0");
+
       if (currValue > prevValue) {
-        setPriceDirection('increase');
-        setMarketCapClass('market-cap-pulse market-cap-realtime');
+        setPriceDirection("increase");
+        setMarketCapClass("market-cap-pulse market-cap-realtime");
       } else if (currValue < prevValue) {
-        setPriceDirection('decrease');
-        setMarketCapClass('market-cap-pulse market-cap-realtime');
+        setPriceDirection("decrease");
+        setMarketCapClass("market-cap-pulse market-cap-realtime");
       }
-      
+
       lastMarketCapRef.current = data.marketCap;
     }
   }, [data?._updateId, data?.marketCap]);
-  
+
   // Обновляем данные, если пришли новые с WebSocket
   useEffect(() => {
-    if (wsCardData && trackedData) {
-      const fieldsToAnimate: Record<string, boolean> = {};
-      let hasChanges = false;
-      
-      if (wsCardData.marketCap !== trackedData.marketCap) {
-        fieldsToAnimate.marketCap = true;
-        fieldsToAnimate.priceChange = true; 
-        hasChanges = true;
-        
-        setPrevMarketCap(trackedData.marketCap);
-      }
-      
-      const checkField = (fieldName: keyof CryptoCardType, oldValue: any, newValue: any) => {
-        if (oldValue !== newValue) {
-          fieldsToAnimate[fieldName] = true;
-          hasChanges = true;
-        }
-      };
-      
-      checkField('top10', trackedData.top10, wsCardData.top10);
-      checkField('devWalletHold', trackedData.devWalletHold, wsCardData.devWalletHold);
-      checkField('first70BuyersHold', trackedData.first70BuyersHold, wsCardData.first70BuyersHold);
-      checkField('insiders', trackedData.insiders, wsCardData.insiders);
-      checkField('tokenAge', trackedData.tokenAge, wsCardData.tokenAge);
-      
-      if (JSON.stringify(trackedData.whales) !== JSON.stringify(wsCardData.whales)) {
-        fieldsToAnimate.whales = true;
-        hasChanges = true;
-      }
+    if (!wsCardData || !trackedData) return;
 
-      if (hasChanges) {
-        setIsUpdating(true);
-        setPrevData({...trackedData}); 
-        setAnimateFields(fieldsToAnimate);
-        
-        const updatedData = {...trackedData, ...wsCardData, _lastUpdated: Date.now()};
-        wsContextData.updateCard(trackedData.id, updatedData);
-        
-        // Добавляем анимацию подсветки всей карточки
-        setTimeout(() => {
-          setAnimateFields({});
-          setIsUpdating(false);
-        }, 1500);
+    const fieldsToAnimate: Record<string, boolean> = {};
+    let hasChanges = false;
+
+    const checkField = (
+      fieldName: keyof CryptoCardType,
+      oldValue: unknown,
+      newValue: unknown
+    ) => {
+      if (oldValue !== newValue) {
+        fieldsToAnimate[fieldName] = true;
+        hasChanges = true;
       }
+    };
+
+    checkField("marketCap", trackedData.marketCap, wsCardData.marketCap);
+    checkField("priceChange", trackedData.priceChange, wsCardData.priceChange);
+    checkField("top10", trackedData.top10, wsCardData.top10);
+    checkField(
+      "devWalletHold",
+      trackedData.devWalletHold,
+      wsCardData.devWalletHold
+    );
+    checkField(
+      "first70BuyersHold",
+      trackedData.first70BuyersHold,
+      wsCardData.first70BuyersHold
+    );
+    checkField("insiders", trackedData.insiders, wsCardData.insiders);
+    checkField("tokenAge", trackedData.tokenAge, wsCardData.tokenAge);
+
+    if (
+      JSON.stringify(trackedData.whales) !== JSON.stringify(wsCardData.whales)
+    ) {
+      fieldsToAnimate.whales = true;
+      hasChanges = true;
     }
-  }, [wsCardData, trackedData, forceUpdateImmediate]);
-  
-  const debouncedSetAnimate = useDebounce((fields: Record<string, boolean>) => {
-    setAnimateFields(fields);
-  }, 50);
-  
-  const forceUpdate = useDebounce(forceUpdateImmediate, 100);
-  
-  const lastUpdatedRef = useRef<number | null>(null);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [lastActivity] = useLastActivity();
-  
-  const logUpdateRef = useRef<NodeJS.Timeout | null>(null);
+
+    if (hasChanges) {
+      setIsUpdating(true);
+      setAnimateFields(fieldsToAnimate);
+
+      setTimeout(() => {
+        setAnimateFields({});
+        setIsUpdating(false);
+      }, 1500);
+    }
+  }, [wsCardData, trackedData]);
 
   useEffect(() => {
-    if (!animate || !trackedData || !data || typeof data._lastUpdated === 'undefined') return;
-    
+    console.log("[CryptoCard] displayData:", displayData);
+  }, [displayData]);
+
+  // const debouncedSetAnimate = useDebounce((fields: Record<string, boolean>) => {
+  //   setAnimateFields(fields);
+  // }, 50);
+
+  // const forceUpdate = useDebounce(forceUpdateImmediate, 100);
+
+  const lastUpdatedRef = useRef<number | null>(null);
+  const [isAnimating, setIsAnimating] = useState(false);
+  // const [lastActivity] = useLastActivity();
+
+  // const logUpdateRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (
+      !animate ||
+      !trackedData ||
+      !data ||
+      typeof data._lastUpdated === "undefined"
+    )
+      return;
+
     if (lastUpdatedRef.current === data._lastUpdated || isAnimating) return;
-    
+
     setIsAnimating(true);
-    
+
     const timer = setTimeout(() => {
       setIsAnimating(false);
     }, ANIMATION_DURATION);
-    
+
     return () => clearTimeout(timer);
   }, [animate, data, trackedData, isAnimating]);
 
@@ -244,73 +289,85 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
     setImageError(true);
   };
 
+  // Рассчитываем коэффициент изменения marketCap
   const getPriceChangeInfo = useMemo(() => {
-    if (!trackedData?.priceChange) return { isUp: true, value: "1.0", ratioValue: 1 };
-    
-    // Извлекаем числовое значение из "×1.2"
-    const value = trackedData.priceChange.replace('×', '');
-    const numValue = parseFloat(value);
-    const isUp = numValue >= 1.0;
-    
-    return {
-      isUp,
-      value,
-      ratioValue: numValue
-    };
-  }, [trackedData?.priceChange]);
-  
+    const prevCapStr = prevData?.marketCap || '';
+    const currCapStr = displayData?.marketCap || '';
+    const prevValue = extractNumericValue(prevCapStr);
+    const currValue = extractNumericValue(currCapStr);
+    const multiplier = currValue / (prevValue || 1);
+    const diff = Math.abs(multiplier - 1);
+    const isUp = currValue >= prevValue;
+    return { isUp, multiplier, diff };
+  }, [displayData?.marketCap, prevData?.marketCap]);
+
   const getUpdateStyle = (field: string) => {
-    if (field === 'marketCap' && marketCapClass) {
+    if (field === "marketCap" && marketCapClass) {
       return marketCapClass;
     }
-    
+
     if (animateFields[field]) {
       return "bg-gradient-to-r from-emerald-600/10 via-emerald-600/30 to-emerald-600/10 bg-[length:200%_100%] animate-gradient rounded-md px-1";
     }
-    
+
     return "";
   };
 
   const renderValueChange = (
-    currentValue: string, 
-    field: string, 
+    currentValue: string,
+    field: string,
     isPercent = false
   ) => {
-    // Используем специальное форматирование для marketCap
-    const formatted = field === 'marketCap' 
-      ? formatMarketCap(currentValue)
-      : formatNumber(currentValue, { isPercent });
-    
+    const formatted =
+      field === "marketCap"
+        ? currentValue
+        : formatNumber(currentValue, { isPercent });
+
     // Для marketCap добавляем более яркую и заметную анимацию
-    if (field === 'marketCap') {
-      const animClass = marketCapClass ? marketCapClass : 'market-cap-realtime';
+    if (field === "marketCap") {
+      const animClass = marketCapClass ? marketCapClass : "market-cap-realtime";
       // Добавляем символ изменения
-      const changeIcon = priceDirection === 'increase' 
-        ? <span className="text-green-400 text-xs">↑</span> 
-        : priceDirection === 'decrease' 
-          ? <span className="text-red-400 text-xs">↓</span> 
-          : null;
-      
+      const changeIcon =
+        priceDirection === "increase" ? (
+          <span className="text-green-400 text-xs">↑</span>
+        ) : priceDirection === "decrease" ? (
+          <span className="text-red-400 text-xs">↓</span>
+        ) : null;
+
       return (
-        <div className={`flex items-center justify-center gap-0.5 ${animClass}`}>
+        <div
+          className={`flex items-center justify-center gap-0.5 ${animClass}`}
+        >
           {changeIcon}
           <span>{formatted}</span>
         </div>
       );
     }
-    
+
     // Для остальных полей
     if (animateFields[field] && prevData) {
-      const prevValueRaw = (prevData as any)[field] || '0';
-      const currentValueRaw = currentValue || '0';
-      
-      const prevNum = parseFloat(prevValueRaw.replace(/[^0-9.-]/g, ''));
-      const currentNum = parseFloat(currentValueRaw.replace(/[^0-9.-]/g, ''));
-      
+      const getFieldValue = (
+        obj: Partial<CryptoCardType>,
+        field: keyof CryptoCardType
+      ): string => {
+        return (obj[field] as string) ?? "0";
+      };
+
+      // И использовать:
+      const prevValueRaw = getFieldValue(
+        prevData ?? {},
+        field as keyof CryptoCardType
+      );
+
+      const currentValueRaw = currentValue || "0";
+
+      const prevNum = parseFloat(prevValueRaw.replace(/[^0-9.-]/g, ""));
+      const currentNum = parseFloat(currentValueRaw.replace(/[^0-9.-]/g, ""));
+
       if (!isNaN(prevNum) && !isNaN(currentNum)) {
         const isIncreasing = currentNum > prevNum;
-        const animClass = isIncreasing ? 'value-increase' : 'value-decrease';
-        
+        const animClass = isIncreasing ? "value-increase" : "value-decrease";
+
         return (
           <div className={`flex items-center ${animClass}`}>
             <span className={isIncreasing ? "text-green-400" : "text-red-400"}>
@@ -321,83 +378,83 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
         );
       }
     }
-    
+
     return <div className={getUpdateStyle(field)}>{formatted}</div>;
   };
 
   const renderTokenAge = (tokenAge?: string) => {
-    if (!tokenAge || tokenAge === "N/A") {
-      return <div>-</div>;
+    if (!tokenAge || tokenAge === "N/A") return <div>-</div>;
+
+    const totalSec = parseAgeUtil(tokenAge);
+    if (totalSec <= 0) return <div>-</div>;
+
+    const days = Math.floor(totalSec / 86400);
+    const hours = Math.floor((totalSec % 86400) / 3600);
+    const minutes = Math.floor((totalSec % 3600) / 60);
+    const seconds = totalSec % 60;
+
+    let disp = "";
+    if (days > 0) {
+      disp = `${days}d ${hours}h`;
+    } else if (hours > 0) {
+      disp = `${hours}h ${minutes}m`;
+    } else {
+      disp = `${minutes}m ${seconds}s`;
     }
-    
-    // Поддержка формата с буквой 'd' на конце (например, 10d)
-    if (/^\d+d$/.test(tokenAge)) {
-      return <div className={getUpdateStyle('tokenAge')}>{tokenAge}</div>;
-    }
-    
-    // Поддержка формата чисел без буквы (например, 10)
-    if (/^\d+$/.test(tokenAge)) {
-      return <div className={getUpdateStyle('tokenAge')}>{tokenAge}d</div>;
-    }
-    
-    // Поддержка формата 'Nh Mm' (часы и минуты)
-    if (/^\d+h \d+m$/.test(tokenAge)) {
-      return <div className={getUpdateStyle('tokenAge')}>{tokenAge}</div>;
-    }
-    
-    // Поддержка формата 'Nd Nh' (дни и часы)
-    if (/^\d+d \d+h$/.test(tokenAge)) {
-      return <div className={getUpdateStyle('tokenAge')}>{tokenAge}</div>;
-    }
-    
-    return <div className={getUpdateStyle('tokenAge')}>{tokenAge}</div>;
+
+    const colorClass = totalSec < 86400 ? "text-green-500" : "text-red-500";
+    return (
+      <div className={`${colorClass} ${getUpdateStyle("tokenAge")}`}>{disp}</div>
+    );
   };
 
   // Используем cardData вместо data для отображения
-  const displayData = data;
 
   useEffect(() => {
     if (data?._updateId) {
       // Сохраняем предыдущие данные для сравнения
-      setPrevData(prev => prev ? {...prev} : null);
-      
+      setPrevData((prev) => (prev ? { ...prev } : null));
+
       // Анализируем, какие поля изменились для анимации
       const fieldsToAnimate: Record<string, boolean> = {};
-      
+
       if (prevData) {
         // Проверяем изменение marketCap
         if (data.marketCap !== prevData.marketCap) {
           fieldsToAnimate.marketCap = true;
-          
+
           // Определяем направление изменения для анимации
-          const prevValue = extractNumericValue(prevData.marketCap || '0');
-          const currValue = extractNumericValue(data.marketCap || '0');
-          
+          const prevValue = extractNumericValue(prevData.marketCap || "0");
+          const currValue = extractNumericValue(data.marketCap || "0");
+
           if (currValue > prevValue) {
-            setPriceDirection('increase');
-            setMarketCapClass('market-cap-increase');
+            setPriceDirection("increase");
+            setMarketCapClass("market-cap-increase");
           } else if (currValue < prevValue) {
-            setPriceDirection('decrease');
-            setMarketCapClass('market-cap-decrease');
+            setPriceDirection("decrease");
+            setMarketCapClass("market-cap-decrease");
           }
-          
+
           // Сбрасываем класс анимации через некоторое время
           setTimeout(() => {
-            setMarketCapClass('');
+            setMarketCapClass("");
           }, 800);
         }
-        
+
         // Проверяем другие поля
         if (data.top10 !== prevData.top10) fieldsToAnimate.top10 = true;
-        if (data.devWalletHold !== prevData.devWalletHold) fieldsToAnimate.devWalletHold = true;
-        if (data.first70BuyersHold !== prevData.first70BuyersHold) fieldsToAnimate.first70BuyersHold = true;
-        if (data.insiders !== prevData.insiders) fieldsToAnimate.insiders = true;
+        if (data.devWalletHold !== prevData.devWalletHold)
+          fieldsToAnimate.devWalletHold = true;
+        if (data.first70BuyersHold !== prevData.first70BuyersHold)
+          fieldsToAnimate.first70BuyersHold = true;
+        if (data.insiders !== prevData.insiders)
+          fieldsToAnimate.insiders = true;
       }
-      
+
       // Устанавливаем анимации для измененных полей
       if (Object.keys(fieldsToAnimate).length > 0) {
         setAnimateFields(fieldsToAnimate);
-        
+
         // Сбрасываем анимацию через определенное время
         setTimeout(() => {
           setAnimateFields({});
@@ -407,24 +464,31 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
   }, [data?._updateId, data]);
 
   const renderPriceChangeBadge = () => {
-    const { isUp, value, ratioValue } = getPriceChangeInfo;
-    
+    const { isUp, multiplier, diff } = getPriceChangeInfo;
+    let intensityClass = "";
+
+    if (diff > 0.4) {
+      intensityClass = isUp
+        ? "border-green-500/70 bg-green-500/30"
+        : "border-red-500/70 bg-red-500/30";
+    } else if (diff > 0.2) {
+      intensityClass = isUp
+        ? "border-green-500/40 bg-green-500/20"
+        : "border-red-500/40 bg-red-500/20";
+    }
+
     const colorClasses = isUp
       ? "text-green-500 border-green-500/20 bg-green-500/10"
       : "text-red-500 border-red-500/20 bg-red-500/10";
-    
-    const intensityClass = Math.abs(ratioValue - 1) > 0.2 
-      ? (isUp ? "border-green-500/40 bg-green-500/20" : "border-red-500/40 bg-red-500/20")
-      : "";
-    
+
     return (
       <Badge
         variant="outline"
         className={cn(
-          `flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium`,
+          `flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium transition-colors duration-300 ease-in-out`,
           colorClasses,
           intensityClass,
-          getUpdateStyle('priceChange')
+          getUpdateStyle("priceChange")
         )}
       >
         {isUp ? (
@@ -432,7 +496,7 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
         ) : (
           <ArrowDownRight className="h-2 w-2" />
         )}
-        <span>×{value}</span>
+        <span>×{multiplier.toFixed(2)}</span>
       </Badge>
     );
   };
@@ -488,8 +552,10 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
   }
 
   return (
-    <Card 
-      className={`block overflow-hidden border-gray-800 ${isUpdating ? 'card-updating' : ''}`}
+    <Card
+      className={`block overflow-hidden border-gray-800 ${
+        isUpdating ? "card-updating" : ""
+      }`}
     >
       <CardContent style={{ padding: "0.1rem .1rem 0" }}>
         <div className="p-4">
@@ -516,107 +582,139 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
                 )}
               </div>
               <div>
-                <p className="text-base font-semibold truncate max-w-[180px]">
-                  {displayData?.symbol}
+                <div className="flex items-center gap-1">
+                  <span className="uppercase font-semibold text-base truncate max-w-[180px]">
+                    {displayData?.symbol}
+                  </span>
                   {isConnected && (
-                    <span className="ml-2 mb-0.5 inline-flex h-2 w-2 rounded-full bg-green-500"></span>
+                    <span className="h-2 w-2 rounded-full bg-green-500" />
                   )}
-                </p>
-                <h3 className="text-xs text-muted-foreground">{displayData?.name?.length > 10 ? displayData?.name?.slice(0, 10) + '...' : displayData?.name}</h3>
+                </div>
+
+                <h3 className="text-xs text-muted-foreground">
+                  {displayData?.name?.length > 10
+                    ? displayData?.name?.slice(0, 10) + "..."
+                    : displayData?.name}
+                </h3>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="text-muted-foreground" style={{ fontSize: "0.55rem" }}>
-                {displayData?.id ? `${displayData.id.slice(0,4)}..${displayData.id.slice(-6)}` : ''}
+              <div
+                className="text-muted-foreground"
+                style={{ fontSize: "0.55rem" }}
+              >
+                {displayData?.id
+                  ? `${displayData.id.slice(0, 4)}..${displayData.id.slice(-6)}`
+                  : ""}
               </div>
-            
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={copyToClipboard}
-                    className="h-7 w-7"
-                  >
-                    {copied ? (
-                      <Check className="h-3 w-3" />
-                    ) : (
-                      <Copy className="h-3 w-3" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{copied ? "Copied!" : "Copy contract address"}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
+
+              <TooltipProvider delayDuration={0} skipDelayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={copyToClipboard}
+                      className="h-7 w-7"
+                    >
+                      {copied ? (
+                        <Check className="h-3 w-3" />
+                      ) : (
+                        <Copy className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{copied ? "Copied!" : "Copy contract address"}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           </div>
 
           {/* Overview - в виде таблицы */}
           <div style={{ marginTop: ".6rem" }}>
-            
             <div className="grid grid-cols-3 gap-x-2 gap-y-2 text-xs">
-              <div className={`flex flex-col items-center p-2 rounded-lg border border-green-800/40 bg-gray-900/30 backdrop-blur-sm ${
-                animateFields.marketCapBlock ? 'market-cap-highlight' : ''
-              }`}>
-                <div className="text-center font-medium mb-1">
-                  {renderValueChange(displayData?.marketCap || '', 'marketCap')}
+              <div
+                className={`flex flex-col items-center p-2 rounded-lg border border-green-800/40 bg-gray-900/30 backdrop-blur-sm ${
+                  animateFields.marketCapBlock ? "market-cap-highlight" : ""
+                }`}
+              >
+                <div className="flex items-center text-center font-medium mb-1">
+                  <Image src={MarketCapIcon} alt="Market Cap" width={12} height={12} className="mr-1" />
+                  {renderValueChange(displayData?.marketCap || "", "marketCap")}
                 </div>
                 <div className="flex items-center text-gray-400 text-[10px]">
-                  <span className="mr-1 text-amber-500">💎</span>
                   <span>Market Cap</span>
                 </div>
               </div>
 
               <div className="flex flex-col items-center p-2 rounded-lg border border-green-800/40 bg-gray-900/30 backdrop-blur-sm">
-                <div className="text-center font-medium mb-1">
+                <div className="flex items-center text-center font-medium mb-1">
+                  <Image src={TokenAgeIcon} alt="Token Age" width={11} height={11} className="mr-1" />
                   {renderTokenAge(displayData?.tokenAge)}
                 </div>
                 <div className="flex items-center text-gray-400 text-[10px]">
-                  <span className="mr-1 text-amber-500">⏳</span>
                   <span>Token Age</span>
                 </div>
               </div>
 
               <div className="flex flex-col items-center p-2 rounded-lg border border-green-800/40 bg-gray-900/30 backdrop-blur-sm">
                 <div className="text-center font-medium mb-1">
-                  {renderValueChange(displayData?.top10 || '', 'top10', true)}
+                  <div className="flex items-center">
+                    <Image src={Top10Icon} alt="Top10" width={12} height={12} className="mr-1" />
+                    {renderValueChange(displayData?.top10 || "", "top10", true)}
+                  </div>
                 </div>
                 <div className="flex items-center text-gray-400 text-[10px]">
-                  <span className="mr-1 text-amber-500">💡</span>
                   <span>Top10</span>
                 </div>
               </div>
 
               <div className="flex flex-col items-center p-2 rounded-lg border border-green-800/40 bg-gray-900/30 backdrop-blur-sm">
                 <div className="text-center font-medium mb-1">
-                  {renderValueChange(displayData?.devWalletHold || '', 'devWalletHold', true)}
+                  <div className="flex items-center">
+                    <Image src={DevWalletIcon} alt="Dev Wallet" width={12} height={12} className="mr-1" />
+                    {renderValueChange(
+                      displayData?.devWalletHold || "",
+                      "devWalletHold",
+                      true
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center text-gray-400 text-[10px]">
-                  <span className="mr-1 text-amber-500">🧮</span>
                   <span>Dev Wallet</span>
                 </div>
               </div>
 
               <div className="flex flex-col items-center p-2 rounded-lg border border-green-800/40 bg-gray-900/30 backdrop-blur-sm">
                 <div className="text-center font-medium mb-1">
-                  {renderValueChange(displayData?.first70BuyersHold || '', 'first70BuyersHold', true)}
+                  <div className="flex items-center">
+                    <Image src={First70Icon} alt="First 70" width={12} height={12} className="mr-1" />
+                    {renderValueChange(
+                      displayData?.first70BuyersHold || "",
+                      "first70BuyersHold",
+                      true
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center text-gray-400 text-[10px]">
-                  <span className="mr-1 text-amber-500">🧠</span>
                   <span>First 70</span>
                 </div>
               </div>
 
               <div className="flex flex-col items-center p-2 rounded-lg border border-green-800/40 bg-gray-900/30 backdrop-blur-sm">
-                <div className="text-center font-medium mb-1">
-                  {renderValueChange(displayData?.insiders || '', 'insiders', true)}
+                <div className="flex  text-center font-medium mb-1">
+                <Image src={InsidersIcon} alt="Insiders" width={14} height={14} className="mr-1" />
+                  {renderValueChange(
+                    displayData?.insiders || "",
+                    "insiders",
+                    true
+                  )}
                 </div>
                 <div className="flex items-center text-gray-400 text-[10px]">
-                  <span className="mr-1 text-amber-500">🐀</span>
+                  
                   <span>Insiders</span>
                 </div>
               </div>
@@ -647,40 +745,45 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
                 >
                   <div className="space-y-1">
                     {/* <h4 className="text-xs font-semibold">💰 Последние покупки:</h4> */}
-                    {displayData?.whales && (() => {
-                      // Группировка и суммирование трейдов по кошельку
-                      const walletSums: {[key: string]: number} = {};
-                      
-                      displayData.whales.forEach(whale => {
-                        // Извлекаем адрес из строки суммы (предполагается формат "количество SOL")
-                        const amountStr = whale.amount.split(' ')[0];
-                        const amount = parseFloat(amountStr);
-                        
-                        // Используем адрес кошелька
-                        const wallet = typeof whale.count === 'string' ? whale.count : whale.count.toString();
-                        
-                        // Суммируем транзакции одного кошелька
-                        if (walletSums[wallet]) {
-                          walletSums[wallet] += amount;
-                        } else {
-                          walletSums[wallet] = amount;
-                        }
-                      });
-                      
-                      // Преобразуем суммы обратно в массив для отображения
-                      return Object.entries(walletSums).map(([wallet, sum], index) => {
-                        // Форматируем адрес кошелька (первые 4 + .. + последние 4)
-                        const formattedWallet = wallet.length > 8 
-                          ? `${wallet.substring(0, 4)}..${wallet.substring(wallet.length - 4)}`
-                          : wallet;
-                        
-                        return (
-                          <p key={index} className="text-xs whitespace-nowrap">
-                            <span className="text-amber-400">➤</span> {formattedWallet}: {sum.toFixed(2)} SOL
-                          </p>
+                    {displayData?.whales &&
+                      (() => {
+                        const walletSums: { [key: string]: number } = {};
+
+                        displayData.whales.forEach(
+                          (whale: { count: string; amount: string }) => {
+                            const amountStr = whale.amount.split(" ")[0];
+                            const amount = parseFloat(amountStr);
+
+                            const wallet = whale.count; // ✅ теперь TypeScript знает, что это строка
+
+                            walletSums[wallet] =
+                              (walletSums[wallet] || 0) + amount;
+                          }
                         );
-                      });
-                    })()}
+
+                        return Object.entries(walletSums).map(
+                          ([wallet, sum], index) => {
+                            const formattedWallet =
+                              wallet.length > 8
+                                ? `${wallet.slice(0, 4)}..${wallet.slice(-4)}`
+                                : wallet;
+
+                            return (
+                              <div
+                                key={index}
+                                className="text-xs whitespace-nowrap"
+                              >
+                                <div className="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#fff" className="bi bi-chevron-right" viewBox="0 0 16 16">
+                                  <path fillRule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+                                </svg>
+                                  {formattedWallet}: {sum.toFixed(2)} SOL
+                                </div>
+                              </div>
+                            );
+                          }
+                        );
+                      })()}
                   </div>
                 </HoverCardContent>
               </HoverCard>
@@ -712,8 +815,7 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
                     asChild
                   >
                     <a
-                      href="https://x.com/whalestrace"
-                      // href={displayData.socialLinks.twitter}
+                      href={twitterHref}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -754,7 +856,7 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
           asChild
         >
           <a
-            href="https://t.me/BloomSolana_bot"
+            href={`https://t.me/BloomSolana_bot?start=ref_QYZ0RZC4KV_ca_${displayData?.id}`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-2"
@@ -775,12 +877,12 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
           asChild
         >
           <a
-            href="https://gmgn.ai"
+            href={`https://gmgn.ai/sol/token/${displayData?.id}`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-2"
           >
-            <span>Buy on GmGn</span>
+            <span>Open In</span>
             <Image
               src={GMGNLogo}
               alt="GMGNLogo"
@@ -794,3 +896,4 @@ export function CryptoCard({ data, loading = false, animate = true }: CryptoCard
     </Card>
   );
 }
+

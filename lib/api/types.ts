@@ -1,4 +1,4 @@
-export interface CryptoCard {
+export type CryptoCard ={
   id: string
   name: string
   symbol: string
@@ -10,7 +10,7 @@ export interface CryptoCard {
   first70BuyersHold: string
   insiders: string
   whales: {
-    count: number
+    count: string
     amount: string
   }[]
   noMint: boolean
@@ -23,6 +23,9 @@ export interface CryptoCard {
     twitter?: string
     website?: string
   }
+  _lastUpdated?: number;
+  _updateId?: string;
+  _receivedAt?: number;
 }
 
 
@@ -102,6 +105,22 @@ export interface UpdateSignalMessage {
   market?: Partial<MarketData>;
   holdings?: Partial<HoldingsData>;
   trades?: Trade[];
+
+  priceChange?: string;
+  tokenAge?: string;
+  whales?: {
+    count: string;
+    amount: string;
+  }[];
+  socials?: {
+    telegram?: string;
+    twitter?: string;
+    website?: string;
+  };
+  noMint?: boolean;
+  blacklist?: boolean;
+  burnt?: string;
+  
 }
 
 export const API_EXAMPLES = {

@@ -85,21 +85,21 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     return isMobile;
   }, []);
 
-  const createMobileDeepLink = useCallback(() => {
-    const keypair = nacl.box.keyPair();
+  // const createMobileDeepLink = useCallback(() => {
+  //   const keypair = nacl.box.keyPair();
     
-    localStorage.setItem('dapp_keypair', JSON.stringify({
-      publicKey: bs58.encode(keypair.publicKey),
-      secretKey: bs58.encode(keypair.secretKey)
-    }));
+  //   localStorage.setItem('dapp_keypair', JSON.stringify({
+  //     publicKey: bs58.encode(keypair.publicKey),
+  //     secretKey: bs58.encode(keypair.secretKey)
+  //   }));
 
-    return `https://phantom.app/ul/v1/connect?${new URLSearchParams({
-      dapp_encryption_public_key: bs58.encode(keypair.publicKey),
-      redirect_url: window.location.href,
-      app_url: window.location.origin,
-      cluster: 'mainnet-beta'
-    }).toString()}`;
-  }, []);
+  //   return `https://phantom.app/ul/v1/connect?${new URLSearchParams({
+  //     dapp_encryption_public_key: bs58.encode(keypair.publicKey),
+  //     redirect_url: window.location.href,
+  //     app_url: window.location.origin,
+  //     cluster: 'mainnet-beta'
+  //   }).toString()}`;
+  // }, []);
 
   const connect = useCallback(async () => {
     try {

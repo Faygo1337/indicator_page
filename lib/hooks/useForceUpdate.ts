@@ -22,7 +22,7 @@ export function useForceUpdate(): [string, () => void] {
  * @param delay - задержка в миллисекундах
  * @returns дебаунсированная функция
  */
-export function useDebounce<T extends (...args: any[]) => any>(
+export function useDebounce<T extends (...args: void[]) => void>(
   fn: T,
   delay = 300
 ): T {

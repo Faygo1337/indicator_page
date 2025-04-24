@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  reactStrictMode: true,
   images: {
     remotePatterns: [
       {
@@ -18,6 +19,18 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
+        hostname: "whales.trace.foundation",
+        port: "",
+        pathname: "/**"
+      },
+      {
+        protocol: "https",
+        hostname: "pump.mypinata.cloud",
+        port: "",
+        pathname: "/**"
+      },
+      {
+        protocol: "https",
         hostname: "**",
         port: "",
         pathname: "/**"
@@ -30,3 +43,4 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 
 
+/** @type {import('next').NextConfig} */

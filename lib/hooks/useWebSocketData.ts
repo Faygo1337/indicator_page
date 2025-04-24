@@ -1,17 +1,11 @@
+// FILE: useWebSocketData.ts
+
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { CryptoCard, MarketData, UpdateSignalMessage } from '@/lib/api/types';
-import { useRouter } from 'next/navigation';
-import { webSocketClient } from '@/lib/api/api-general';
-import { formatMarketCap, extractNumericValue } from '@/lib/utils';
-
-type WebSocketStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
-
-type WebSocketControls = {
-  reconnect: () => void;
-  disconnect: () => void;
-};
+import { useState, useEffect, useCallback } from 'react';
+import { CryptoCard, UpdateSignalMessage } from '@/lib/api/types';
+import { webSocketClient, convertToCardUpdates } from '@/lib/api/api-general';
+import { getJwtFromStorage } from '@/lib/utils';
 
 export type ExtendedCryptoCard = CryptoCard & {
   _lastUpdated?: number;
@@ -19,148 +13,117 @@ export type ExtendedCryptoCard = CryptoCard & {
   _receivedAt?: number;
 };
 
-export function useWebSocketData(url: string): [
-  WebSocketStatus, 
-  ExtendedCryptoCard[], 
-  string | null, 
+type WebSocketStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
+type WebSocketControls = {
+  reconnect: () => void;
+  disconnect: () => void;
+};
+
+export function useWebSocketData(): [
+  WebSocketStatus,
+  ExtendedCryptoCard[],
+  string | null,
   WebSocketControls,
-  (token: string, updates: Partial<CryptoCard>) => void 
+  (token: string, updates: Partial<CryptoCard>) => void
 ] {
   const [status, setStatus] = useState<WebSocketStatus>('disconnected');
   const [cards, setCards] = useState<ExtendedCryptoCard[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
-  
-  // Для отладки
-  const updateCountRef = useRef(0);
-  
-  // Максимальное количество карточек
+
   const MAX_CARDS = 8;
-  
-  // Для хранения оригинальных данных о cards без интерполяции
-  const originalCardsRef = useRef<ExtendedCryptoCard[]>([]);
-  
-  // Хранение текущих значений circulatingSupply и price для каждой карточки
-  const cardsMetadataRef = useRef<Record<string, { 
-    circulatingSupply?: number; 
-    price?: number;
-    priceTarget?: number;
-    priceStart?: number;
-    marketCapStart?: number;
-    stepProgress?: number;
-    animating?: boolean;
-  }>>({});
-  
-  // Функция для обновления карточки - ключевой метод, который обновляет состояние
-  const updateCard = useCallback((token: string, updates: Partial<CryptoCard>) => {
-    updateCountRef.current++;
-    console.log(`[useWebSocketData] Вызов updateCard для ${token}:`, updates, `(#${updateCountRef.current})`);
-    
+
+  const applyCardUpdate = useCallback((token: string, updates: Partial<CryptoCard>) => {
     setCards(prevCards => {
       const index = prevCards.findIndex(card => card.id === token);
-      if (index === -1) {
-        console.log(`[useWebSocketData] Карточка ${token} не найдена в массиве`);
-        return prevCards;
-      }
-      
-      const updatedCard = { 
-        ...prevCards[index], 
-        ...updates,
-        _lastUpdated: Date.now(),
-        _updateId: `update-${Date.now()}`
-      };
-      
-      console.log(`[useWebSocketData] Обновляю карточку:`, updatedCard);
-      
-      // Создаем новый массив с обновленной карточкой
-      const newCards = [...prevCards];
-      newCards[index] = updatedCard;
-      
-      return newCards;
-    });
-    
-    // Принудительно обновляем UI
-    router.refresh();
-  }, [router]);
-
-  const handleNewSignal = useCallback((data: CryptoCard) => {
-    console.log(`[useWebSocketData] Получен новый сигнал:`, data);
-    
-    setCards(prevCards => {
-      const cardExists = prevCards.some(card => card.id === data.id);
-      if (cardExists) {
-        return prevCards.map(card => card.id === data.id ? { 
-          ...card, 
-          ...data,
-          _lastUpdated: Date.now(),
-          _updateId: `newSignal-${Date.now()}`
-        } : card);
-      } else {
-        // Добавляем новую карточку в начало и ограничиваем общее количество до MAX_CARDS
-        const newCard = {
-          ...data,
-          _receivedAt: Date.now(),
-          _lastUpdated: Date.now(),
-          _updateId: `newSignal-${Date.now()}`
-        };
-        const updatedCards = [newCard, ...prevCards];
-        // Если карточек стало больше MAX_CARDS, оставляем только первые MAX_CARDS
-        return updatedCards.slice(0, MAX_CARDS);
-      }
-    });
-    
-    router.refresh();
-  }, [router]);
-
-  const handleUpdateSignal = useCallback((token: string, updates: Partial<CryptoCard>) => {
-    console.log(`[WebSocket] Получено обновление для ${token}:`, updates);
-    
-    setCards(prevCards => {
-      const cardIndex = prevCards.findIndex(card => card.id === token);
-      if (cardIndex === -1) {
-        console.warn(`[WebSocket] Карточка с ID ${token} не найдена!`);
-        return prevCards;
-      }
-      
       const timestamp = Date.now();
-      
-      // Создаем полностью новый массив карточек для гарантированного обновления реакт состояния
-      return prevCards.map(card => {
-        if (card.id === token) {
-          return {
-            ...card,
-            ...updates,
-            _lastUpdated: timestamp,
-            _updateId: `update-${timestamp}`
-          };
-        }
-        return card;
-      });
+  
+      if (index === -1) {
+        const newCard: ExtendedCryptoCard = {
+          id: token,
+          name: updates.name ?? '???',
+          symbol: updates.symbol ?? '???',
+          image: updates.image ?? '',
+          marketCap: updates.marketCap ?? '$0',
+          tokenAge: updates.tokenAge ?? '',
+          top10: updates.top10 ?? '',
+          devWalletHold: updates.devWalletHold ?? '',
+          first70BuyersHold: updates.first70BuyersHold ?? '',
+          insiders: updates.insiders ?? '',
+          whales: updates.whales ?? [],
+          noMint: updates.noMint ?? false,
+          blacklist: updates.blacklist ?? false,
+          burnt: updates.burnt ?? '0%',
+          top10Percentage: updates.top10Percentage ?? '',
+          priceChange: updates.priceChange ?? '',
+          socialLinks: updates.socialLinks ?? {},
+          _receivedAt: timestamp,
+          _lastUpdated: timestamp,
+          _updateId: `create-${timestamp}`,
+        };
+        return [newCard, ...prevCards].slice(0, MAX_CARDS);
+      }
+  
+      const existingCard = prevCards[index];
+  
+      const updatedCard: ExtendedCryptoCard = {
+        ...existingCard,
+        ...updates,
+        name: updates.name ?? existingCard.name ?? '???',
+        symbol: updates.symbol ?? existingCard.symbol ?? '???',
+        image: updates.image ?? existingCard.image ?? '',
+        marketCap: updates.marketCap ?? existingCard.marketCap ?? '$0',
+        tokenAge: updates.tokenAge ?? existingCard.tokenAge ?? '',
+        top10: updates.top10 ?? existingCard.top10 ?? '',
+        devWalletHold: updates.devWalletHold ?? existingCard.devWalletHold ?? '',
+        first70BuyersHold: updates.first70BuyersHold ?? existingCard.first70BuyersHold ?? '',
+        insiders: updates.insiders ?? existingCard.insiders ?? '',
+        whales: updates.whales ?? existingCard.whales ?? [],
+        noMint: updates.noMint ?? existingCard.noMint ?? false,
+        blacklist: updates.blacklist ?? existingCard.blacklist ?? false,
+        burnt: updates.burnt ?? existingCard.burnt ?? '0%',
+        top10Percentage: updates.top10Percentage ?? existingCard.top10Percentage ?? '',
+        priceChange: updates.priceChange ?? existingCard.priceChange ?? '',
+        socialLinks: updates.socialLinks ?? existingCard.socialLinks ?? {},
+        _lastUpdated: timestamp,
+        _updateId: `update-${timestamp}`,
+      };
+  
+      return [
+        ...prevCards.slice(0, index),
+        updatedCard,
+        ...prevCards.slice(index + 1),
+      ];
     });
-    
-    // Вызываем refresh для обновления интерфейса
-    router.refresh();
-  }, [router]);
+  }, []);
+  
 
-  const handleError = useCallback((error: any) => {
-    console.error('[WebSocket] Ошибка:', error);
-    setError(error?.message || 'Ошибка соединения с WebSocket');
+  const handleError = useCallback((err: unknown) => {
+    console.error('[WebSocket] Ошибка:', err);
+    const message = err instanceof Error ? err.message : 'Ошибка соединения с WebSocket';
+    setError(message);
     setStatus('error');
   }, []);
 
   const reconnect = useCallback(() => {
+    const jwtToken = getJwtFromStorage();
+    if (!jwtToken) {
+      console.warn('[WebSocket] JWT отсутствует, переподключение невозможно');
+      return;
+    }
+
     if (status === 'connecting') return;
-    
     setStatus('connecting');
     setError(null);
-    
-    webSocketClient.connect('')
+
+    webSocketClient
+      .connect(jwtToken)
       .then(() => {
+        console.log('[WebSocket] Переподключение успешно');
         setStatus('connected');
       })
       .catch((err: Error) => {
-        console.error('[WebSocket] Ошибка переподключения:', err);
-        setError(err?.message || 'Не удалось переподключиться');
+        console.error('[WebSocket] Ошибка при переподключении:', err);
+        setError(err.message || 'Не удалось переподключиться');
         setStatus('error');
       });
   }, [status]);
@@ -172,30 +135,48 @@ export function useWebSocketData(url: string): [
 
   useEffect(() => {
     console.log('[useWebSocketData] Инициализация WebSocket...');
+    const jwtToken = getJwtFromStorage();
+    if (!jwtToken) {
+      console.warn('[WebSocket] JWT отсутствует, WebSocket не подключён');
+      return;
+    }
+
     setStatus('connecting');
+
+    webSocketClient.onNewSignal((data: CryptoCard) => {
+      console.log('[NEW SIGNAL]:', data); // ✅
+      if (!data?.id) {
+        console.warn('⚠️ Пропуск newSignal без ID:', data);
+        return;
+      }
+      
+      applyCardUpdate(data.id, data);
+    });
     
-    // Регистрируем обработчики
-    webSocketClient.onNewSignal(handleNewSignal);
-    webSocketClient.onUpdateSignal(handleUpdateSignal);
     webSocketClient.onError(handleError);
-    
-    // Подключаемся
-    webSocketClient.connect('')
+
+    webSocketClient.onRawUpdateSignal((token: string, rawUpdate: UpdateSignalMessage) => {
+      const updates = convertToCardUpdates(rawUpdate);
+      applyCardUpdate(token, updates);
+    });
+
+    webSocketClient
+      .connect(jwtToken)
       .then(() => {
-        console.log('[useWebSocketData] Соединение WebSocket установлено');
+        console.log('[WebSocket] Соединение установлено');
         setStatus('connected');
       })
       .catch((err: Error) => {
         console.error('[WebSocket] Ошибка подключения:', err);
-        setError(err?.message || 'Не удалось подключиться');
+        setError(err.message || 'Не удалось подключиться');
         setStatus('error');
       });
-    
+
     return () => {
-      console.log('[useWebSocketData] Очистка WebSocket...');
+      console.log('[useWebSocketData] Очистка...');
       webSocketClient.disconnect();
     };
-  }, [handleNewSignal, handleUpdateSignal, handleError]);
-  
-  return [status, cards, error, { reconnect, disconnect }, updateCard];
-} 
+  }, [applyCardUpdate, handleError]);
+
+  return [status, cards, error, { reconnect, disconnect }, applyCardUpdate];
+}

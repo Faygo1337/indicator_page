@@ -1,4 +1,5 @@
 'use client';
+;
 
 import { 
   VerifyResponse, 
@@ -8,25 +9,22 @@ import {
   WS_ENDPOINT, 
   NewSignalMessage, 
   UpdateSignalMessage, 
-  JWTPayload,
-  CryptoCard 
+  CryptoCard,
+  MarketData,
+  HoldingsData
 } from './types';
-import { decodeJWT, logDecodedJWT, formatMarketCap } from "@/lib/utils";
+import { decodeJWT, formatMarketCap } from "@/lib/utils";
 import axios from 'axios';
 
 
-interface VerifyApiResponse {
+
+interface AuthVerifyResponse {
   success: boolean;
   status: boolean;
   token: string;
   message?: string;
 }
 
-interface AuthVerifyResponse {
-  status: boolean;
-  success: boolean;
-  token: string;
-}
 
 
 class ApiGeneralService {
@@ -37,15 +35,15 @@ class ApiGeneralService {
   private maxReconnectAttempts = 5;
   private reconnectTimeout = 1000;
   private connected = false;
-  
+  private rawUpdateCallbacks: ((token: string, raw: UpdateSignalMessage) => void)[] = [];
   // Новые поля для обработки WebSocket
   private newSignalCallbacks: ((data: CryptoCard) => void)[] = [];
   private updateSignalCallbacks: ((token: string, updates: Partial<CryptoCard>) => void)[] = [];
-  private errorCallbacks: ((error: any) => void)[] = [];
+  private errorCallbacks: ((error: unknown) => void)[] = [];
   
   // Добавляем параметры для поддержания соединения (heartbeat)
   private heartbeatIntervalId: number | null = null;
-  private heartbeatInterval = 30000; // 30 секунд между пингами
+  private heartbeatInterval = 30000; // 60 секунд между пингами
   private lastPongTime = 0;
   private missedPongs = 0;
   private maxMissedPongs = 3;
@@ -67,6 +65,7 @@ class ApiGeneralService {
    * @returns информация о верификации
    */
   async verifyWallet(signature: string, wallet: string, timestamp?: number): Promise<VerifyResponse> {
+
     console.log("Верификация кошелька:", wallet, "с подписью:", signature, "timestamp:", timestamp);
 
     try {
@@ -264,6 +263,7 @@ class ApiGeneralService {
     // Основная логика инициализации
     this.initWebSocketInternal();
   }
+  
 
   private initWebSocketInternal(): void {
     // Очистим таймаут если он был
@@ -411,12 +411,15 @@ class ApiGeneralService {
         }
       }
       
-      // Отправляем ping в формате JSON для совместимости с сервером
-      this.ws.send(JSON.stringify({ ping: true, timestamp: currentTime }));
-      console.log("Отправлен ping");
+      // Отправляем ping для поддержания соединения
+      this.ws.send(JSON.stringify({ ping: true }));
+      console.log("Отправлен ping-запрос");
     } catch (error) {
       console.error("Ошибка отправки ping:", error);
     }
+  }
+  public onRawUpdateSignal(callback: (token: string, raw: UpdateSignalMessage) => void): void {
+    this.rawUpdateCallbacks.push(callback);
   }
   
   /**
@@ -424,80 +427,78 @@ class ApiGeneralService {
    */
   private handleMessage(event: MessageEvent): void {
     try {
-      // Отмечаем, что получили сообщение
-      this.messageReceivedFlag = true;
-      
-      // Проверяем, не является ли сообщение ping/pong
-      if (typeof event.data === 'string') {
-        const lowerData = event.data.toLowerCase();
-        if (lowerData === 'ping' || lowerData === 'pong') {
-          this.lastPongTime = Date.now();
-          this.missedPongs = 0;
-          console.log(`Получен ответ: ${event.data}`);
-          return;
-        }
-      }
-      
-      // Парсим JSON сообщение
+      // Убеждаемся, что сообщение можно разобрать как JSON
+      let message: unknown;
       try {
-        const message = JSON.parse(event.data);
-        
-        // Проверяем, является ли сообщение pong-ответом
-        if (message && (message.pong === true || message.type === 'pong')) {
-          this.lastPongTime = Date.now();
-          this.missedPongs = 0;
-          console.log("Получен pong-ответ");
-          return;
-        }
-        
-        console.log("Получено WebSocket сообщение:", message);
-        
-        // Устанавливаем флаг успешной коммуникации
-        this.connectionEstablished = true;
-        
-        // Если это первое сообщение, очищаем таймаут на проверку сообщений
-        if (this.connectionTimeoutId) {
-          clearTimeout(this.connectionTimeoutId);
-          this.connectionTimeoutId = null;
-        }
-        
-        // Обработка для первого типа сообщения
-        if (message && message.token) {
-          // Это полное сообщение с name и symbol (новый токен)
-          if (message.name && message.symbol) {
-            try {
-              const cardData = this.convertSignalToCard(message);
-              this.notifyNewSignal(cardData);
-            } catch (conversionError) {
-              console.error("Ошибка преобразования сигнала:", conversionError);
-            }
-          } 
-
-          else if (message.market || message.holdings || message.trades) {
-            try {
-              const updates = this.convertToCardUpdates(message);
-              this.notifyUpdateSignal(message.token, updates);
-            } catch (updateError) {
-              console.error("Ошибка обновления сигнала:", updateError);
-            }
-          }
-
-          else {
-            console.log("Получено сообщение только с token, игнорируем:", message.token);
-          }
-        }
-      } catch (parseError) {
-        console.error("Не удалось распарсить сообщение WebSocket:", event.data, parseError);
+        message = JSON.parse(event.data);
+      } catch {
+        console.error('[API] Ошибка при разборе сообщения:', event.data);
         return;
       }
-    } catch (error) {
-      console.error("Ошибка обработки сообщения WebSocket:", error);
-      this.notifyError(error);
+      
+      console.log('[API] handleMessage', message);
+
+      // Проверяем, является ли сообщение объектом
+      if (!message || typeof message !== 'object') {
+        console.warn('[API] Полученное сообщение не является объектом:', message);
+        return;
+      }
+      
+      const msgObj = message as Record<string, unknown>;
+      
+      // Сначала проверяем, это pong?
+      if ('pong' in msgObj) {
+        this.lastPongTime = Date.now();
+        this.missedPongs = 0;
+        console.log('[API] Получен pong');
+        return;
+      }
+
+      // Проверяем есть ли у сообщения поле token и type
+      if ('type' in msgObj && msgObj.type === 'update' && 'token' in msgObj && typeof msgObj.token === 'string') {
+        const token = msgObj.token;
+        console.log('[API] Вызов обработчиков обновления для токена', token);
+        this.rawUpdateCallbacks.forEach(cb => cb(token, msgObj as unknown as UpdateSignalMessage));
+      } else if ('type' in msgObj && msgObj.type === 'new') {
+        console.log('[API] Вызов обработчиков новой карточки');
+        this.newSignalCallbacks.forEach(cb => cb(msgObj as unknown as CryptoCard));
+      } 
+      // Проверяем специальный случай - сообщение с token и market, но без type
+      else if ('token' in msgObj && typeof msgObj.token === 'string' && 'market' in msgObj) {
+        const token = msgObj.token as string;
+        console.log('[API] Вызов обработчиков обновления для токена (формат без type):', token);
+        
+        // Создаем сообщение обновления с нужными полями
+        const updateMessage: UpdateSignalMessage = {
+          token: token,
+          market: msgObj.market as Partial<MarketData>,
+          holdings: msgObj.holdings as Partial<HoldingsData>
+        };
+        
+        // Преобразуем сообщение в понятный формат и передаем обработчикам
+        console.log('[API] Преобразованное сообщение:', updateMessage);
+        
+        // Конвертируем сообщение в формат для карточки
+        const cardUpdates = this.convertToCardUpdates(updateMessage);
+        console.log('[API] Обновления для карточки:', cardUpdates);
+        
+        // Уведомляем подписчиков об обновлении сигнала
+        this.notifyUpdateSignal(token, cardUpdates);
+      } else {
+        // Если сообщение имеет неизвестный формат, логируем его для отладки
+        console.warn('[API] Получено сообщение неизвестного формата:', msgObj);
+      }
+      
+      // Устанавливаем флаг, что мы получили сообщение
+      this.messageReceivedFlag = true;
+    } catch (err) {
+      console.error('[API] Ошибка обработки сообщения:', err);
+      this.notifyError(err);
     }
   }
   
 
-  private handleError(event: Event): void {
+  private handleError(): void {
     console.error("Получена ошибка WebSocket");
     
     this.connectionEstablished = false;
@@ -642,7 +643,7 @@ class ApiGeneralService {
   /**
    * Уведомление об ошибке
    */
-  private notifyError(error: any): void {
+  private notifyError(error: unknown): void {
     for (const callback of this.errorCallbacks) {
       try {
         callback(error);
@@ -665,15 +666,23 @@ class ApiGeneralService {
   }
   
 
-  onError(callback: (error: any) => void): void {
+  onError(callback: (error: unknown) => void): void {
     this.errorCallbacks.push(callback);
   }
-  
 
   isConnected(): boolean {
     return this.connected;
   }
+  private formatTimestamp(timestamp: number): string {
+    const date = new Date(timestamp * 1000); // предполагаем, что timestamp в секундах
+    return date.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  }
 
+  private previousPrices: Map<string, number> = new Map();
 
   private convertSignalToCard(signal: NewSignalMessage): CryptoCard {
     let imageUrl = signal.logo || '';
@@ -707,12 +716,33 @@ class ApiGeneralService {
 
     // Преобразуем транзакции в формат китов, только из реальных данных
     const whales = signal.trades && signal.trades.length > 0
-      ? signal.trades.slice(0, 3).map(trade => ({
-          count: Math.round(trade.amtSol * 10), // Пример преобразования: 1.5 SOL → 15
-          amount: `${Math.round(trade.amtSol * 100) / 100} SOL`
-        }))
-      : []; // Пустой массив вместо моковых данных
-
+    ? signal.trades.slice(0, 3).map(trade => ({
+        count: Math.round(trade.amtSol * 10).toString(), // 👈 преобразуем в строку
+        amount: `${Math
+          .round(trade.amtSol * 100) / 100} SOL`
+      }))
+    : [];
+    
+    let priceChange = "×1.0"; // по умолчанию
+    const tokenId = signal.token;
+    
+    // Сохраняем текущую цену
+    if (signal.market?.price !== undefined) {
+      const newPrice = signal.market.price;
+    
+      // Получаем предыдущую цену из кэша (если есть)
+      const prevPrice = this.previousPrices.get(tokenId);
+    
+      // Вычисляем и сохраняем коэффициент изменения
+      if (prevPrice && prevPrice > 0) {
+        const ratio = newPrice / prevPrice;
+        priceChange = `×${ratio.toFixed(2)}`;
+      }
+    
+      // Обновляем предыдущую цену
+      this.previousPrices.set(tokenId, newPrice);
+    }
+    
     // Создаем объект карточки с готовыми данными
     return {
       id: signal.token,
@@ -722,86 +752,219 @@ class ApiGeneralService {
       marketCap,
       tokenAge,
       top10,
+     
       devWalletHold,
       first70BuyersHold,
       insiders,
-      whales: whales.length > 0 ? whales : [{ count: 0, amount: "0 SOL" }],
+      whales, // 👈 ВСТАВИЛИ СЮДА
       noMint: true,
       blacklist: false,
       burnt: "100%",
       top10Percentage: top10,
-      priceChange: "×1.0", // Будет обновлено позже
-      socialLinks
+      priceChange,
+      socialLinks,
     };
+    
+    
   }
 
+  // Дополнение к api-general.ts
 
-  private convertToCardUpdates(update: UpdateSignalMessage): Partial<CryptoCard> {
+  private circulatingSupplyMap: Map<string, number> = new Map();
+
+  // Хранилище предыдущих marketCap (локально, без стейта)
+  private previousMarketCaps: Map<string, number> = new Map();
+  
+  public convertToCardUpdates(update: UpdateSignalMessage): Partial<CryptoCard> {
     const result: Partial<CryptoCard> = {};
-    
+  
     console.log("[API] Обработка обновления:", update);
-
+  
     if (update.market) {
-      if (update.market.price !== undefined && update.market.circulatingSupply !== undefined) {
-        const marketCapValue = update.market.circulatingSupply * update.market.price;
-        result.marketCap = formatMarketCap(marketCapValue);
-        console.log(`[API] Рассчитан marketCap: ${result.marketCap}`);
+      const price = update.market.price;
+  
+      // Получаем и сохраняем circulatingSupply один раз на токен
+      const savedSupply = this.circulatingSupplyMap.get(update.token);
+  
+      if (update.market.circulatingSupply !== undefined && !savedSupply) {
+        this.circulatingSupplyMap.set(update.token, update.market.circulatingSupply);
+      }
+  
+      const supplyToUse = savedSupply ?? update.market.circulatingSupply;
+  
+      if (price !== undefined && supplyToUse !== undefined) {
+        const newMarketCap = price * supplyToUse;
+        result.marketCap = formatMarketCap(newMarketCap);
+  
+        const previousCap = this.previousMarketCaps.get(update.token);
+  
+        if (previousCap && previousCap > 0) {
+          const ratio = newMarketCap / previousCap;
+          result.priceChange = `×${ratio.toFixed(2)}`;
+        } else {
+          result.priceChange = `×1.00`;
+        }
+  
+        // Сохраняем новый marketCap
+        this.previousMarketCaps.set(update.token, newMarketCap);
+  
+        console.log(`[API] Рассчитан marketCap: ${result.marketCap}, ratio: ${result.priceChange}`);
       }
     }
-
+  
     if (update.holdings) {
       if (update.holdings.top10 !== undefined) {
-        result.top10 = `${update.holdings.top10.toFixed(2)}%`;
-        result.top10Percentage = `${update.holdings.top10.toFixed(2)}%`;
+        const top10Str = `${update.holdings.top10.toFixed(2)}%`;
+        result.top10 = top10Str;
+        result.top10Percentage = top10Str;
       }
-      
+  
       if (update.holdings.devHolds !== undefined) {
         result.devWalletHold = `${update.holdings.devHolds.toFixed(2)}%`;
       }
-      
+  
       if (update.holdings.first70 !== undefined) {
         result.first70BuyersHold = `${update.holdings.first70.toFixed(2)}%`;
       }
-      
+  
       if (update.holdings.insidersHolds !== undefined) {
         result.insiders = `${update.holdings.insidersHolds.toFixed(2)}%`;
       }
     }
-    
+  
     if (Object.keys(result).length === 0) {
-      console.warn("[API] Внимание: Обновление не содержит изменений для UI");
+      console.warn(`[API] Внимание: Обновление не содержит изменений для UI (токен ${update.token})`);
     } else {
-      console.log("[API] Результат конвертации:", result);
+      console.log(`[API] Результат конвертации для ${update.token}:`, result);
     }
-    
+  
     return result;
   }
   
+
   /**
-   * Форматирование временной метки в читаемый формат
+   * Публичный метод для получения информации о состоянии соединения
    */
-  private formatTimestamp(timestamp: number): string {
-    const now = Date.now() / 1000;
-    const diff = now - timestamp;
-    
-    if (diff < 60) {
-      return `${Math.floor(diff)}s`;
-    } else if (diff < 3600) {
-      return `${Math.floor(diff / 60)}m`;
-    } else if (diff < 86400) {
-      const hours = Math.floor(diff / 3600);
-      const minutes = Math.floor((diff % 3600) / 60);
-      return `${hours}h ${minutes}m`;
-    } else {
-      const days = Math.floor(diff / 86400);
-      const hours = Math.floor((diff % 86400) / 3600);
-      return `${days}d ${hours}h`;
+  public getConnectionInfo(): {
+    connected: boolean;
+    connecting: boolean;
+    reconnectAttempts: number;
+    connectionEstablished: boolean;
+  } {
+    return {
+      connected: this.connected,
+      connecting: this.connecting, 
+      reconnectAttempts: this.reconnectAttempts,
+      connectionEstablished: this.connectionEstablished
+    };
+  }
+
+  /**
+   * Публичный метод для обработки сообщений WebSocket
+   * @param message - строка сообщения от WebSocket
+   * @returns обработанное сообщение с данными или null при ошибке
+   */
+  public processWebSocketMessage(message: string): {
+    type: 'new' | 'update' | 'pong' | 'unknown';
+    data: Record<string, unknown> | null;
+    cardUpdates?: Partial<CryptoCard>;
+    error?: string;
+  } {
+    try {
+      // Пытаемся разобрать JSON из строки
+      let parsedMessage: Record<string, unknown>;
+      try {
+        parsedMessage = JSON.parse(message);
+      } catch {
+        console.error('[API] Ошибка при разборе сообщения:', message);
+        return { 
+          type: 'unknown',
+          data: null,
+          error: 'Ошибка при разборе JSON сообщения'
+        };
+      }
+      
+      // Проверяем, является ли сообщение объектом
+      if (!parsedMessage || typeof parsedMessage !== 'object') {
+        console.warn('[API] Полученное сообщение не является объектом:', parsedMessage);
+        return { 
+          type: 'unknown',
+          data: null,
+          error: 'Сообщение не является объектом'
+        };
+      }
+      
+      // Проверяем тип сообщения
+      if ('pong' in parsedMessage) {
+        return { type: 'pong', data: parsedMessage };
+      }
+      
+      // Проверяем есть ли явное поле type
+      if ('type' in parsedMessage) {
+        const msgType = parsedMessage.type as string;
+        
+        if (msgType === 'update' && 'token' in parsedMessage) {
+          const updateMsg = parsedMessage as unknown as UpdateSignalMessage;
+          const cardUpdates = this.convertToCardUpdates(updateMsg);
+          return { 
+            type: 'update', 
+            data: parsedMessage,
+            cardUpdates 
+          };
+        } 
+        
+        if (msgType === 'new') {
+          return { type: 'new', data: parsedMessage };
+        }
+      }
+      
+      // Специальный случай - сообщение с token и market/holdings, но без type
+      if ('token' in parsedMessage && (('market' in parsedMessage) || ('holdings' in parsedMessage))) {
+        const token = parsedMessage.token as string;
+        
+        // Создаем сообщение обновления с нужными полями
+        const updateMessage: UpdateSignalMessage = {
+          token: token
+        };
+
+        // Добавляем market если есть
+        if ('market' in parsedMessage && parsedMessage.market) {
+          updateMessage.market = parsedMessage.market as unknown as Partial<MarketData>;
+        }
+
+        // Добавляем holdings если есть
+        if ('holdings' in parsedMessage && parsedMessage.holdings) {
+          updateMessage.holdings = parsedMessage.holdings as unknown as Partial<HoldingsData>;
+        }
+        
+        // Конвертируем в формат карточки
+        const cardUpdates = this.convertToCardUpdates(updateMessage);
+        
+        return { 
+          type: 'update', 
+          data: parsedMessage,
+          cardUpdates 
+        };
+      }
+      
+      // Неизвестный формат
+      return { 
+        type: 'unknown', 
+        data: parsedMessage,
+        error: 'Неизвестный формат сообщения'
+      };
+    } catch (err) {
+      console.error('[API] Ошибка обработки сообщения:', err);
+      return { 
+        type: 'unknown',
+        data: null,
+        error: err instanceof Error ? err.message : 'Неизвестная ошибка'
+      };
     }
   }
+
 }
-
-
-export const apiGeneral = ApiGeneralService.getInstance();
+export  const apiGeneral = ApiGeneralService.getInstance();
 
 
 export const webSocketClient = apiGeneral;
@@ -814,3 +977,18 @@ export async function verifyWallet(signature: string, wallet: string, timestamp?
 export async function checkPayment(): Promise<PaymentResponse> {
   return apiGeneral.checkPayment();
 } 
+
+
+
+
+export const convertToCardUpdates = (update: UpdateSignalMessage): Partial<CryptoCard> =>
+  ApiGeneralService.getInstance().convertToCardUpdates(update);
+
+export const getConnectionInfo = () => apiGeneral.getConnectionInfo();
+
+/**
+ * Обработчик WebSocket сообщений, который можно использовать во внешних компонентах
+ * @param messageData Данные сообщения от WebSocket
+ */
+export const processWebSocketMessage = (messageData: string) => 
+  ApiGeneralService.getInstance().processWebSocketMessage(messageData);

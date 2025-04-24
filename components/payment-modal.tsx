@@ -9,7 +9,7 @@ import * as QRCode from "qrcode";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
-  DialogContent as BaseDialogContent,
+  // DialogContent as BaseDialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
@@ -54,7 +54,7 @@ interface PaymentModalProps {
 
 export function PaymentModal({
   open,
-  onOpenChange,
+  // onOpenChange,
   walletAddress,
   onCheckPayment,
 }: PaymentModalProps) {
