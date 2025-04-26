@@ -2,7 +2,7 @@
 import Image from "next/image";
 import { useEffect, useState, useCallback } from "react";
 import { Connection } from '@solana/web3.js';
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePhantomWallet } from "@/lib/hooks/usePhantomWallet";
 import { sendPaymentTransaction, checkTransactionStatus, getTransactionDetails } from "@/lib/solana-pay";
@@ -60,6 +60,7 @@ export function PaymentModal({
   const [status, setStatus] = useState<'idle' | 'sending' | 'checking' | 'confirming'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [transactionDetails, setTransactionDetails] = useState<any>(null);
+  const [isCopied, setIsCopied] = useState(false);
   const { provider: wallet, connect } = usePhantomWallet();
 
   // Функция для открытия транзакции в Solscan
@@ -102,6 +103,8 @@ export function PaymentModal({
       }
 
       setStatus('checking');
+
+      // Проверяем статус транзакции
       let isConfirmed = false;
       const checkTxInterval = setInterval(async () => {
         try {
@@ -122,20 +125,55 @@ export function PaymentModal({
             }
             
             setStatus('confirming');
+
+            // Настройки для повторных попыток
+            let retryCount = 0;
+            const maxRetries = 60; // 5 минут общего времени проверки (60 * 5 секунд)
+            let isSubscriptionActive = false;
+
             const checkPaymentInterval = setInterval(async () => {
               try {
+                console.log('Попытка проверки платежа:', retryCount + 1);
                 await onCheckPayment();
-                clearInterval(checkPaymentInterval);
-                setIsProcessing(false);
-                onOpenChange(false);
-                window.location.reload();
+                const token = localStorage.getItem('whales_trace_token');
+                if (token) {
+                  // Проверяем статус подписки напрямую
+                  const response = await fetch('https://whales.trace.foundation/api/payment', {
+                    method: 'GET',
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                      'Content-Type': 'application/json'
+                    }
+                  });
+                  const data = await response.json();
+                  
+                  if (data.hasSubscription === true) {
+                    // Подписка активирована успешно
+                    isSubscriptionActive = true;
+                    clearInterval(checkPaymentInterval);
+                    setIsProcessing(false);
+                    onOpenChange(false); // Закрываем модальное окно только после успешной активации
+                    window.location.reload();
+                  }
+                }
+                retryCount++;
+                
+                if (retryCount >= maxRetries) {
+                  clearInterval(checkPaymentInterval);
+                  setIsProcessing(false);
+                  setError('Время ожидания подтверждения подписки истекло. Пожалуйста, свяжитесь с поддержкой.');
+                }
               } catch (error) {
-                console.error('Ошибка при проверке статуса оплаты:', error);
-                setError('Ошибка проверки статуса оплаты');
-                setIsProcessing(false);
-                clearInterval(checkPaymentInterval);
+                console.log('Ошибка при проверке платежа, продолжаем попытки...');
+                retryCount++;
+                
+                if (retryCount >= maxRetries) {
+                  clearInterval(checkPaymentInterval);
+                  setIsProcessing(false);
+                  setError('Время ожидания подтверждения подписки истекло. Пожалуйста, свяжитесь с поддержкой.');
+                }
               }
-            }, 5000);
+            }, 5000); // Проверка каждые 5 секунд
           }
         } catch (error) {
           console.error('Ошибка при проверке статуса транзакции:', error);
@@ -149,6 +187,12 @@ export function PaymentModal({
     }
   };
 
+  const handleCopyAddress = () => {
+    navigator.clipboard.writeText(walletAddress);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
   return (
     <Dialog open={open}>
       <DialogContent 
@@ -157,138 +201,100 @@ export function PaymentModal({
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Please topup wallet</DialogTitle>
-          <DialogDescription>
-            Send 0.1 SOL to the address below to activate your subscription
+          <DialogTitle className="text-lg font-semibold">Please topup wallet</DialogTitle>
+          <DialogDescription className="text-sm text-gray-400">
+            Send 0.1 SOL to activate your subscription
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col items-center justify-center space-y-4 py-4">
+
+        <div className="flex flex-col items-center justify-center space-y-4 py-2">
           <div className="grid w-full items-center gap-1.5">
-            <label htmlFor="wallet-address">Wallet address</label>
+            <label htmlFor="wallet-address" className="text-sm text-gray-400">Wallet address</label>
             <div className="flex w-full items-center space-x-2">
-              <Input
-                id="wallet-address"
-                value={walletAddress}
-                readOnly
-                className="font-mono text-sm"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  navigator.clipboard.writeText(walletAddress);
-                }}
-              >
-                Copy
-              </Button>
+              <div className="relative flex-1">
+                <Input
+                  id="wallet-address"
+                  value={walletAddress}
+                  readOnly
+                  className="font-mono text-sm bg-purple-900/20 border-purple-700/30 text-purple-300 focus-visible:ring-purple-500 pr-[85px]"
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopyAddress}
+                  className={cn(
+                    "absolute right-2 top-1/2 -translate-y-1/2 h-7 text-xs transition-all duration-200",
+                    isCopied 
+                      ? "text-purple-300 bg-purple-900/40" 
+                      : "text-purple-400 hover:text-purple-300 hover:bg-purple-900/30"
+                  )}
+                >
+                  {isCopied ? "Copied!" : "Copy"}
+                </Button>
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-col w-full gap-2">
+          {/* Кнопка оплаты */}
+          <div className="flex flex-col w-full gap-4 mt-2">
             <Button
               onClick={handlePayment}
               disabled={isProcessing}
               className={cn(
-                "transition-all duration-200",
-                isProcessing ? "animate-pulse" : ""
+                "relative w-full py-2 text-sm font-medium transition-all duration-200",
+                isProcessing 
+                  ? "bg-purple-900/50 border border-purple-700/50" 
+                  : "bg-purple-600 hover:bg-purple-500 hover:scale-[1.02] transform"
               )}
             >
               {isProcessing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {status === 'sending' && "Отправка транзакции..."}
-                  {status === 'checking' && "Проверка транзакции..."}
-                  {status === 'confirming' && "Подтверждение оплаты..."}
-                </>
+                <div className="flex items-center gap-2 text-purple-300">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>
+                    {status === 'sending' && "Processing transaction..."}
+                    {status === 'checking' && "Confirming payment..."}
+                    {status === 'confirming' && "Activating subscription..."}
+                  </span>
+                </div>
               ) : (
-                'Pay 0.1 SOL'
+                <div className="flex items-center justify-center gap-2">
+                  <span>Pay 0.1 SOL</span>
+                </div>
               )}
             </Button>
 
             {error && (
-              <div className="text-sm text-red-500 text-center">
-                {error}
-              </div>
-            )}
-
-            {transactionDetails && (
-              <div className="mt-4 p-4 bg-gray-900/50 rounded-lg text-sm space-y-3">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-medium">Transaction Details:</h4>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => openInSolscan(transactionDetails.signature)}
-                    className="text-xs text-purple-400 hover:text-purple-300"
-                  >
-                    View on Solscan →
-                  </Button>
-                </div>
-
-                {/* Основная информация */}
-                <div className="space-y-1">
-                  <p className="flex justify-between">
-                    <span className="text-gray-400">Status:</span>
-                    <span className={cn(
-                      "font-medium",
-                      transactionDetails.status === 'success' ? 'text-green-500' : 'text-red-500'
-                    )}>
-                      {transactionDetails.status}
-                    </span>
-                  </p>
-                  <p className="flex justify-between">
-                    <span className="text-gray-400">Type:</span>
-                    <span className="font-mono">{transactionDetails.type}</span>
-                  </p>
-                  <p className="flex justify-between">
-                    <span className="text-gray-400">Fee:</span>
-                    <span>{(transactionDetails.fee / 1e9).toFixed(6)} SOL</span>
-                  </p>
-                  <p className="flex justify-between">
-                    <span className="text-gray-400">Confirmations:</span>
-                    <span>{transactionDetails.confirmations}</span>
-                  </p>
-                </div>
-
-                {/* Изменения балансов */}
-                <div className="border-t border-gray-800 pt-2 mt-2">
-                  <p className="font-medium mb-2">Balance Changes:</p>
-                  <div className="space-y-2">
-                    {transactionDetails.balanceChanges?.map((change: any, index: number) => (
-                      <div key={index} className="text-xs space-y-1">
-                        <div className="flex justify-between items-center">
-                          <span className={cn(
-                            "font-mono",
-                            change.accountType === 'sender' ? 'text-red-400' :
-                            change.accountType === 'recipient' ? 'text-green-400' :
-                            'text-gray-400'
-                          )}>
-                            {change.accountType}:
-                          </span>
-                          <span className="font-mono">{change.account.slice(0, 4)}...{change.account.slice(-4)}</span>
-                        </div>
-                        <div className="flex justify-end">
-                          <span className={cn(
-                            "font-mono",
-                            change.changeSol < 0 ? 'text-red-500' : 'text-green-500'
-                          )}>
-                            {change.changeSol > 0 ? '+' : ''}{change.changeSol.toFixed(6)} SOL
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Timestamp */}
-                {transactionDetails.timestamp && (
-                  <div className="text-xs text-gray-500 text-right mt-2">
-                    {new Date(transactionDetails.timestamp).toLocaleString()}
-                  </div>
-                )}
+              <div className="flex items-center justify-center gap-2 text-sm text-red-400 bg-red-900/20 p-3 rounded-lg border border-red-700/30">
+                <AlertCircle className="h-4 w-4" />
+                <span>{error}</span>
               </div>
             )}
           </div>
+
+          {transactionDetails && (
+            <div className="mt-2 p-2 bg-purple-900/20 rounded-lg border border-purple-700/30">
+              <div className="flex items-center justify-between gap-1">
+                <Button 
+                  variant="ghost" 
+                  className="flex-1 font-mono text-[12px] text-purple-300/80 hover:text-purple-300 px-2 h-7"
+                  onClick={() => {
+                    navigator.clipboard.writeText(transactionDetails.signature);
+
+                  }}
+                >
+                 Hash: {`${transactionDetails.signature.slice(0, 4)}...${transactionDetails.signature.slice(-4)}`}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => openInSolscan(transactionDetails.signature)}
+                  className="shrink-0 h-6 px-2 text-[11px] font-medium text-purple-400 hover:text-purple-300 hover:bg-purple-900/40"
+                >
+                  View on Solscan
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

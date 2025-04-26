@@ -210,12 +210,8 @@ export default function Home() {
       const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
       if (!token) {
         console.error("Токен не найден в localStorage");
-        alert("Ошибка проверки платежа: токен не найден");
         return;
       }
-      
-      // Закрываем модальное окно оплаты
-      setIsPaymentModalOpen(false);
       
       // Проверяем подписку и подключаемся к WebSocket
       const isValid = await checkAndConnectWebSocket();
@@ -229,54 +225,9 @@ export default function Home() {
           localStorage.setItem(STORAGE_KEYS.JWT_PAYLOAD, JSON.stringify(decodedPayload));
           setJwtPayload(decodedPayload);
         }
-        
-        // Удаляем запись о модальном окне из localStorage
-        localStorage.removeItem("payment_modal_open");
-      } else {
-        // Пытаемся обновить токен через API
-        // try {
-        //   // Получаем адрес кошелька
-        //   const walletAddress = localStorage.getItem(STORAGE_KEYS.WALLET);
-        //   if (!walletAddress) {
-        //     throw new Error("Адрес кошелька не найден");
-        //   }
-          
-        //   // Здесь должен быть код для повторной верификации кошелька
-        //   // Это зависит от вашей реализации, но в качестве примера:
-        //   const response = await fetch('https://whales.trace.foundation/api/verify', {
-        //     method: 'POST',
-        //     headers: {
-        //       'Authorization': `Bearer ${token}`,
-        //       'Content-Type': 'application/json'
-        //     },
-        //     body: JSON.stringify({ wallet: walletAddress })
-        //   });
-          
-        //   if (response.ok) {
-        //     const refreshData = await response.json();
-        //     if (refreshData.token) {
-        //       // Сохраняем новый токен
-        //       localStorage.setItem(STORAGE_KEYS.TOKEN, refreshData.token);
-              
-        //       // Проверяем подписку и подключаемся к WebSocket с новым токеном
-        //       const newValid = await checkAndConnectWebSocket();
-              
-        //       if (newValid) {
-        //         return;
-        //       }
-        //     }
-        //   }
-          
-          // Если обновление не удалось, показываем сообщение об ошибке
-          alert("Подписка не найдена. Пожалуйста, оплатите подписку для продолжения.");
-        // } catch (refreshError) {
-          // console.error("Ошибка при обновлении токена:", refreshError);
-          // alert("Ошибка при обновлении токена. Пожалуйста, попробуйте снова или свяжитесь с поддержкой.");
-        // }
       }
     } catch (error) {
       console.error("Error checking payment:", error);
-      alert("Failed to check payment status. Please try again.");
     }
   };
 
