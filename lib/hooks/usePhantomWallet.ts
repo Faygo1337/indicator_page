@@ -34,6 +34,7 @@ interface PhantomMobileWalletState extends PhantomWalletState {
   disconnect: () => Promise<void>;
   signMessage: (message: string) => Promise<string>;
   checkMobileDevice: () => boolean;
+  provider: NonNullable<PhantomWindow['phantom']>['solana'] | null;
 }
 
 // Константы для ключей в localStorage
@@ -67,13 +68,21 @@ export function usePhantomWallet(): PhantomMobileWalletState {
 
 
   const getProvider = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
     if ('phantom' in window) {
       const provider = (window as unknown as PhantomWindow).phantom?.solana;
       if (provider?.isPhantom) {
         return provider;
       }
     }
-    window.open('https://phantom.app/', '_blank');
+
+    // Открываем страницу Phantom только если мы в браузере
+    if (typeof window !== 'undefined') {
+      window.open('https://phantom.app/', '_blank');
+    }
     return null;
   }, []);
 
@@ -87,7 +96,7 @@ export function usePhantomWallet(): PhantomMobileWalletState {
 
   // const createMobileDeepLink = useCallback(() => {
   //   const keypair = nacl.box.keyPair();
-    
+
   //   localStorage.setItem('dapp_keypair', JSON.stringify({
   //     publicKey: bs58.encode(keypair.publicKey),
   //     secretKey: bs58.encode(keypair.secretKey)
@@ -108,7 +117,7 @@ export function usePhantomWallet(): PhantomMobileWalletState {
       if (state.isMobileDevice) {
         const keypair = nacl.box.keyPair();
         const encodedPublicKey = bs58.encode(keypair.publicKey);
-        
+
         localStorage.setItem('dapp_public_key', encodedPublicKey);
 
         const params = new URLSearchParams({
@@ -134,7 +143,7 @@ export function usePhantomWallet(): PhantomMobileWalletState {
       try {
         const timestamp = Date.now();
         const message = new TextEncoder().encode(`Signing in to Trace with wallet: ${walletAddress} TS: ${timestamp}`);
-      
+
         const signedMessage = await provider.signMessage(message, 'utf8');
         const signature = bs58.encode(signedMessage.signature);
 
@@ -317,5 +326,6 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     disconnect,
     signMessage,
     checkMobileDevice,
+    provider: getProvider(), // Добавляем provider в возвращаемые значения
   };
 }

@@ -21,12 +21,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} bg-background text-foreground`}>
-        {/* <ThemeProvider attribute="class" defaultTheme="dark"> */}
+      <body className={`${inter.className} bg-background text-foreground`} suppressHydrationWarning>
         <WebSocketProvider>
-        {children}
+          {children}
         </WebSocketProvider>
-        {/* </ThemeProvider> */}
       </body>
     </html>
   );

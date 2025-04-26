@@ -1,15 +1,13 @@
 "use client";
 import Image from "next/image";
-import { useEffect, useState } from "react";
-// import { QrCode } from "lucide-react"
-import { PublicKey } from "@solana/web3.js";
-import { encodeURL } from "@solana/pay";
-import BigNumber from "bignumber.js";
-import * as QRCode from "qrcode";
+import { useEffect, useState, useCallback } from "react";
+import { Connection } from '@solana/web3.js';
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePhantomWallet } from "@/lib/hooks/usePhantomWallet";
+import { sendPaymentTransaction, checkTransactionStatus, getTransactionDetails } from "@/lib/solana-pay";
 import {
   Dialog,
-  // DialogContent as BaseDialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
@@ -54,88 +52,105 @@ interface PaymentModalProps {
 
 export function PaymentModal({
   open,
-  // onOpenChange,
+  onOpenChange,
   walletAddress,
   onCheckPayment,
 }: PaymentModalProps) {
-  const [isChecking, setIsChecking] = useState(false);
-  const [qrCode, setQrCode] = useState<string>("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'sending' | 'checking' | 'confirming'>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const [transactionDetails, setTransactionDetails] = useState<any>(null);
+  const { provider: wallet, connect } = usePhantomWallet();
 
-  const handleCheckPayment = async () => {
-    setIsChecking(true);
+  // Функция для открытия транзакции в Solscan
+  const openInSolscan = useCallback((signature: string) => {
+    const url = `https://solscan.io/tx/${signature}?cluster=devnet`;
+    window.open(url, '_blank');
+  }, []);
+
+  const handlePayment = async () => {
     try {
-      await onCheckPayment();
-    } catch (error) {
-      console.error("Ошибка при проверке платежа:", error);
-    } finally {
-      setIsChecking(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!open) return;
-
-    setIsChecking(true);
-    setQrCode("");
-
-    const generateQrCode = async () => {
-      if (!walletAddress || walletAddress.trim() === "") {
-        setQrCode("Не указан адрес кошелька");
-        setIsChecking(false);
+      if (!wallet) {
+        await connect();
         return;
       }
 
+      setIsProcessing(true);
+      setStatus('sending');
+      setError(null);
+      setTransactionDetails(null);
+
+      const connection = new Connection('https://api.devnet.solana.com');
+      const amountSOL = 0.1;
+
+      console.log('Инициализация отправки транзакции...');
+      const signature = await sendPaymentTransaction(
+        connection,
+        wallet,
+        walletAddress,
+        amountSOL
+      );
+      console.log('Транзакция отправлена, сигнатура:', signature);
+
+      // Получаем и показываем детали транзакции
       try {
-        console.log("Generating QR code for wallet:", walletAddress);
-
-        try {
-          new PublicKey(walletAddress).toBase58();
-        } catch (error) {
-          console.error("Invalid wallet address:", error);
-          throw new Error("Некорректный адрес кошелька");
-        }
-
-        const recipient = new PublicKey(walletAddress).toBase58();
-        const amount = new BigNumber(0.5);
-        const label = "WhalesTrace Subscription";
-        const message = "Payment for subscription";
-        const memo = "WhalesTrace#Sub";
-        const url = encodeURL({
-          recipient: new PublicKey(recipient),
-          amount,
-          label,
-          message,
-          memo,
-        });
-
-        const qrCode = await QRCode.toDataURL(url.toString(), {
-          errorCorrectionLevel: "H",
-          margin: 2,
-          width: 512,
-          color: {
-            dark: "#000000",
-            light: "#FFFFFF",
-          },
-        });
-
-        setQrCode(qrCode);
-      } catch (err) {
-        console.error("Error generating QR code:", err);
-        setQrCode(
-          err instanceof Error ? err.message : "Не удалось создать QR-код"
-        );
-      } finally {
-        setIsChecking(false);
+        const details = await getTransactionDetails(connection, signature);
+        setTransactionDetails(details);
+        console.log('Детали транзакции:', details);
+      } catch (error) {
+        console.error('Ошибка при получении деталей транзакции:', error);
       }
-    };
 
-    generateQrCode();
-  }, [open, walletAddress]);
+      setStatus('checking');
+      let isConfirmed = false;
+      const checkTxInterval = setInterval(async () => {
+        try {
+          console.log('Проверка статуса транзакции...');
+          isConfirmed = await checkTransactionStatus(connection, signature);
+          
+          if (isConfirmed) {
+            console.log('Транзакция подтверждена!');
+            clearInterval(checkTxInterval);
+            
+            // Обновляем детали транзакции после подтверждения
+            try {
+              const updatedDetails = await getTransactionDetails(connection, signature);
+              setTransactionDetails(updatedDetails);
+              console.log('Обновленные детали транзакции:', updatedDetails);
+            } catch (error) {
+              console.error('Ошибка при обновлении деталей транзакции:', error);
+            }
+            
+            setStatus('confirming');
+            const checkPaymentInterval = setInterval(async () => {
+              try {
+                await onCheckPayment();
+                clearInterval(checkPaymentInterval);
+                setIsProcessing(false);
+                onOpenChange(false);
+                window.location.reload();
+              } catch (error) {
+                console.error('Ошибка при проверке статуса оплаты:', error);
+                setError('Ошибка проверки статуса оплаты');
+                setIsProcessing(false);
+                clearInterval(checkPaymentInterval);
+              }
+            }, 5000);
+          }
+        } catch (error) {
+          console.error('Ошибка при проверке статуса транзакции:', error);
+        }
+      }, 2000);
+
+    } catch (error) {
+      console.error('Ошибка оплаты:', error);
+      setError(error instanceof Error ? error.message : 'Ошибка оплаты');
+      setIsProcessing(false);
+    }
+  };
 
   return (
-    <Dialog 
-      open={open}>
-      {/* Используем наш кастомный DialogContent без кнопки закрытия */}
+    <Dialog open={open}>
       <DialogContent 
         className="sm:max-w-md"
         onPointerDownOutside={(e) => e.preventDefault()}
@@ -144,20 +159,10 @@ export function PaymentModal({
         <DialogHeader>
           <DialogTitle>Please topup wallet</DialogTitle>
           <DialogDescription>
-            Send 0.5 SOL to the address below to activate your subscription
+            Send 0.1 SOL to the address below to activate your subscription
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center justify-center space-y-4 py-4">
-          <div className="border border-border p-4 rounded-lg">
-            {qrCode && (
-              <Image
-                src={qrCode}
-                alt="Payment QR Code"
-                width={220}
-                height={220}
-              />
-            )}
-          </div>
           <div className="grid w-full items-center gap-1.5">
             <label htmlFor="wallet-address">Wallet address</label>
             <div className="flex w-full items-center space-x-2">
@@ -178,14 +183,112 @@ export function PaymentModal({
               </Button>
             </div>
           </div>
-        </div>
-        <div className="flex justify-end gap-2">
-          <Button onClick={handleCheckPayment} disabled={isChecking}>
-            {isChecking ? "Checking..." : "Check (Test Mode)"}
-          </Button>
-          <p className="text-xs text-muted-foreground mt-2">
-            Clicking will display card data for testing
-          </p>
+
+          <div className="flex flex-col w-full gap-2">
+            <Button
+              onClick={handlePayment}
+              disabled={isProcessing}
+              className={cn(
+                "transition-all duration-200",
+                isProcessing ? "animate-pulse" : ""
+              )}
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {status === 'sending' && "Отправка транзакции..."}
+                  {status === 'checking' && "Проверка транзакции..."}
+                  {status === 'confirming' && "Подтверждение оплаты..."}
+                </>
+              ) : (
+                'Pay 0.1 SOL'
+              )}
+            </Button>
+
+            {error && (
+              <div className="text-sm text-red-500 text-center">
+                {error}
+              </div>
+            )}
+
+            {transactionDetails && (
+              <div className="mt-4 p-4 bg-gray-900/50 rounded-lg text-sm space-y-3">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-medium">Transaction Details:</h4>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openInSolscan(transactionDetails.signature)}
+                    className="text-xs text-purple-400 hover:text-purple-300"
+                  >
+                    View on Solscan →
+                  </Button>
+                </div>
+
+                {/* Основная информация */}
+                <div className="space-y-1">
+                  <p className="flex justify-between">
+                    <span className="text-gray-400">Status:</span>
+                    <span className={cn(
+                      "font-medium",
+                      transactionDetails.status === 'success' ? 'text-green-500' : 'text-red-500'
+                    )}>
+                      {transactionDetails.status}
+                    </span>
+                  </p>
+                  <p className="flex justify-between">
+                    <span className="text-gray-400">Type:</span>
+                    <span className="font-mono">{transactionDetails.type}</span>
+                  </p>
+                  <p className="flex justify-between">
+                    <span className="text-gray-400">Fee:</span>
+                    <span>{(transactionDetails.fee / 1e9).toFixed(6)} SOL</span>
+                  </p>
+                  <p className="flex justify-between">
+                    <span className="text-gray-400">Confirmations:</span>
+                    <span>{transactionDetails.confirmations}</span>
+                  </p>
+                </div>
+
+                {/* Изменения балансов */}
+                <div className="border-t border-gray-800 pt-2 mt-2">
+                  <p className="font-medium mb-2">Balance Changes:</p>
+                  <div className="space-y-2">
+                    {transactionDetails.balanceChanges?.map((change: any, index: number) => (
+                      <div key={index} className="text-xs space-y-1">
+                        <div className="flex justify-between items-center">
+                          <span className={cn(
+                            "font-mono",
+                            change.accountType === 'sender' ? 'text-red-400' :
+                            change.accountType === 'recipient' ? 'text-green-400' :
+                            'text-gray-400'
+                          )}>
+                            {change.accountType}:
+                          </span>
+                          <span className="font-mono">{change.account.slice(0, 4)}...{change.account.slice(-4)}</span>
+                        </div>
+                        <div className="flex justify-end">
+                          <span className={cn(
+                            "font-mono",
+                            change.changeSol < 0 ? 'text-red-500' : 'text-green-500'
+                          )}>
+                            {change.changeSol > 0 ? '+' : ''}{change.changeSol.toFixed(6)} SOL
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Timestamp */}
+                {transactionDetails.timestamp && (
+                  <div className="text-xs text-gray-500 text-right mt-2">
+                    {new Date(transactionDetails.timestamp).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

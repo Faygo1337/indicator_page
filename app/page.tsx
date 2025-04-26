@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+  import { useEffect, useState, useCallback } from "react";
 import { Header } from "@/components/header";
 import { CryptoCard } from "@/components/crypto-card";
 import { PaymentModal } from "@/components/payment-modal";
@@ -141,6 +141,8 @@ export default function Home() {
   // Функция проверки статуса подписки
   const checkSubscriptionStatus = async (token: string): Promise<boolean> => {
     try {
+      console.log('[Payment Check] Отправка GET запроса для проверки подписки...');
+
       const response = await fetch('https://whales.trace.foundation/api/payment', {
         method: 'GET',
         headers: {
@@ -148,18 +150,39 @@ export default function Home() {
           'Content-Type': 'application/json'
         }
       });
+
+      const responseText = await response.text();
+      console.log('[Payment Check] Сырой ответ от сервера:', responseText);
       
-      if (!response.ok) {
-        console.warn('Ошибка при проверке подписки, статус:', response.status);
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log('[Payment Check] Разобранный ответ:', data);
+      } catch (e) {
+        console.error('[Payment Check] Ошибка парсинга ответа:', e);
+        console.log('[Payment Check] Невалидный JSON ответ:', responseText);
         return false;
       }
       
-      const data = await response.json();
-      console.log('Статус подписки:', data);
+      if (!response.ok) {
+        console.warn('[Payment Check] Ошибка запроса:', data);
+        return false;
+      }
+
+      if (data?.hasSubscription === undefined) {
+        console.warn('[Payment Check] В ответе отсутствует поле hasSubscription:', data);
+        return false;
+      }
+
+      // Проверяем наличие нового токена в ответе
+      if (data.accessToken) {
+        console.log('[Payment Check] Получен новый токен доступа');
+        localStorage.setItem(STORAGE_KEYS.TOKEN, data.accessToken);
+      }
       
       return data.hasSubscription === true;
     } catch (error) {
-      console.error('Ошибка при проверке статуса подписки:', error);
+      console.error('[Payment Check] Ошибка при проверке статуса подписки:', error);
       return false;
     }
   };

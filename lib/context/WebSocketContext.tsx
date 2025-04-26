@@ -40,6 +40,11 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
   children,
   // url = 'wss://whales.trace.foundation/api/stream' 
 }) => {
+  // Проверяем, что мы в браузерном окружении
+  if (typeof window === 'undefined') {
+    return <>{children}</>;
+  }
+
   console.log('[WebSocketContext] Инициализация провайдера');
   
   const updateCountRef = useRef(0);
