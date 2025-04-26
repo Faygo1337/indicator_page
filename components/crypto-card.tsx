@@ -741,10 +741,10 @@ export function CryptoCard({
                 <HoverCardContent
                   side="top"
                   align="start"
-                  className="w-auto p-3 bg-gray-900 border-gray-800 text-gray-200"
+                  className="w-auto p-2 bg-gradient-to-br from-[#1A1A1A] to-[#141414] border border-gray-700 rounded-md text-gray-200"
+                  
                 >
-                  <div className="space-y-1">
-                    {/* <h4 className="text-xs font-semibold">💰 Последние покупки:</h4> */}
+                  <div className="space-y-0.5">
                     {displayData?.whales &&
                       (() => {
                         const walletSums: { [key: string]: number } = {};
@@ -754,7 +754,7 @@ export function CryptoCard({
                             const amountStr = whale.amount.split(" ")[0];
                             const amount = parseFloat(amountStr);
 
-                            const wallet = whale.count; // ✅ теперь TypeScript знает, что это строка
+                            const wallet = whale.count;
 
                             walletSums[wallet] =
                               (walletSums[wallet] || 0) + amount;
@@ -771,13 +771,29 @@ export function CryptoCard({
                             return (
                               <div
                                 key={index}
-                                className="text-xs whitespace-nowrap"
+                                className="text-xs whitespace-nowrap font-mono tracking-tight transition-colors duration-200 hover:bg-gray-800/50 hover:rounded-sm group"
                               >
                                 <div className="flex items-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#fff" className="bi bi-chevron-right" viewBox="0 0 16 16">
-                                  <path fillRule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
-                                </svg>
-                                  {formattedWallet}: {sum.toFixed(2)} SOL
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="10"
+                                    height="10"
+                                    fill="#6B7280"
+                                    className="bi bi-chevron-right transition-colors duration-200 group-hover:fill-purple-400"
+                                    viewBox="0 0 16 16"
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"
+                                    />
+                                  </svg>
+                                  <span className="ml-1 text-gray-300">
+                                    {formattedWallet}:{" "}
+                                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-purple-400">
+                                      {sum.toFixed(2)}
+                                    </span>{" "}
+                                    SOL
+                                  </span>
                                 </div>
                               </div>
                             );
