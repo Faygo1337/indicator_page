@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from 'react';
 
-const STORAGE_KEY = 'whales_trace_has_referral';
+const STORAGE_KEY = 'whales_trace_referral_id';
 
-export function useReferral() {
-  const [hasReferral, setHasReferral] = useState<boolean>(() => {
+export function useReferral(): number | undefined {
+  const [referralId, setReferralId] = useState<number | undefined>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem(STORAGE_KEY) === 'true';
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? parseInt(saved, 10) : undefined;
     }
-    return false;
+    return undefined;
   });
 
   useEffect(() => {
@@ -18,11 +19,14 @@ export function useReferral() {
       const ref = urlParams.get('ref');
 
       if (ref) {
-        localStorage.setItem(STORAGE_KEY, 'true');
-        setHasReferral(true);
+        const numericRef = parseInt(ref, 10);
+        if (!isNaN(numericRef)) {
+          localStorage.setItem(STORAGE_KEY, numericRef.toString());
+          setReferralId(numericRef);
+        }
       }
     }
   }, []);
 
-  return hasReferral;
+  return referralId;
 }

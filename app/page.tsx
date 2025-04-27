@@ -107,7 +107,7 @@ export default function Home() {
           signature, 
           publicKey, 
           timestamp, 
-          referralCode ? "1" : undefined // Передаем "1" если есть реферал
+          referralCode?.toString()
         );
   
         if (!verifyResponse.token) {
@@ -123,6 +123,8 @@ export default function Home() {
         if (payload) {
           localStorage.setItem(STORAGE_KEYS.JWT_PAYLOAD, JSON.stringify(payload));
           setJwtPayload(payload);
+          // При успешном подключении обновляем JWT в localStorage для Header
+          localStorage.setItem('whales_trace_jwt', JSON.stringify(payload));
         } else {
           console.error("Не удалось декодировать JWT токен");
         }
@@ -133,8 +135,8 @@ export default function Home() {
           setIsPaymentModalOpen(true);
         }
 
-        // Очищаем реферальный флаг после успешного подключения
-        localStorage.removeItem('whales_trace_has_referral');
+        // Очищаем реферальный ID после успешного подключения
+        localStorage.removeItem('whales_trace_referral_id');
       } catch (error) {
         console.error("Ошибка при обработке верификации кошелька:", error);
         alert("Ошибка при проверке подписи. Попробуйте снова.");

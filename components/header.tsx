@@ -6,7 +6,7 @@ import Logo from "../public/logo.jpg";
 import BurgerMenu from "../public/burgerMenu.svg";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, decodeJWT, formatWalletAddress } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -25,8 +25,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { formatWalletAddress } from "@/lib/utils";
-import { getReferralStats } from "@/lib/api/api-general";
 import type { JWTPayload } from "@/lib/api/types";
 
 interface HeaderProps {
@@ -45,48 +43,82 @@ export function Header({
   const [isMobile, setIsMobile] = useState(false);
   const [referralLink, setReferralLink] = useState('');
   const [isCopied, setIsCopied] = useState(false);
-  const [referralStats, setReferralStats] = useState<{ refCount: number; refEarnings: number }>({ refCount: 0, refEarnings: 0 });
   const [isLoading, setIsLoading] = useState(false);
+  const [referralStats, setReferralStats] = useState({ refCount: 0, refEarnings: 0 });
+
+  // Получаем JWT из localStorage при монтировании
+  const [jwtPayload, setJwtPayload] = useState<JWTPayload | null>(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('whales_trace_token');
+      return token ? decodeJWT(token) : null;
+    }
+    return null;
+  });
+
+  // Получаем реферальную статистику
+  const fetchReferralStats = useCallback(async () => {
+    if (!wallet) return;
+    
+    try {
+      setIsLoading(true);
+      const token = localStorage.getItem('whales_trace_token');
+      if (!token) return;
+
+      const response = await fetch('https://whales.trace.foundation/api/referral', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch referral stats');
+
+      const data = await response.json();
+      setReferralStats(data);
+    } catch (error) {
+      console.error('Error fetching referral stats:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [wallet]);
 
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 1024);
     };
 
-    handleResize(); 
+    handleResize();
     window.addEventListener("resize", handleResize);
 
-    // Формируем реферальную ссылку при наличии кошелька
-    if (wallet) {
+    // Формируем реферальную ссылку на основе ID из JWT
+    if (jwtPayload?.id) {
       const baseUrl = window.location.origin;
-      setReferralLink(`${baseUrl}?ref=${wallet}`);
+      setReferralLink(`${baseUrl}/?ref=${jwtPayload.id}`);
+    }
+
+    // Получаем реферальную статистику при открытии диалога
+    if (pageDialogOpen) {
+      fetchReferralStats();
     }
 
     return () => {
       window.removeEventListener("resize", handleResize);
     };
-  }, [wallet]);
+  }, [jwtPayload, pageDialogOpen, fetchReferralStats]);
 
-  const loadReferralStats = useCallback(async () => {
-    if (!wallet) return;
-    
-    try {
-      setIsLoading(true);
-      const stats = await getReferralStats();
-      setReferralStats(stats);
-    } catch (error) {
-      console.error('Ошибка при загрузке реферальной статистики:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [wallet]);
-
-  // Загружаем статистику при открытии диалога
+  // Обновляем JWT payload при изменении токена
   useEffect(() => {
-    if (pageDialogOpen) {
-      loadReferralStats();
-    }
-  }, [pageDialogOpen, loadReferralStats]);
+    const handleStorageChange = () => {
+      const token = localStorage.getItem('whales_trace_token');
+      if (token) {
+        const newPayload = decodeJWT(token);
+        setJwtPayload(newPayload);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   const handleCopyReferralLink = () => {
     navigator.clipboard.writeText(referralLink);
@@ -214,7 +246,7 @@ export function Header({
                   </div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-400">Бонус</div>
+                  <div className="text-sm text-gray-400">Заработано</div>
                   <div className="text-xl font-semibold text-green-400">
                     {isLoading ? (
                       <div className="h-7 w-20 animate-pulse bg-purple-800/30 rounded" />
@@ -255,7 +287,7 @@ export function Header({
                 </div>
               </div>
 
-              {/* Инструкция по реферальной программе */}
+              {/* Инструкция */}
               <div className="mt-4 space-y-2">
                 <h4 className="font-medium text-sm text-gray-300">Как это работает:</h4>
                 <ul className="text-sm text-gray-400 space-y-1 list-disc list-inside">

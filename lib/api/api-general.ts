@@ -70,77 +70,71 @@ class ApiGeneralService {
     signature: string,
     wallet: string,
     timestamp?: number,
-    referralCode?: string
+    referralId?: string
   ): Promise<VerifyResponse> {
-    console.log("Верификация кошелька:", wallet, "с подписью:", signature, "timestamp:", timestamp, "referralCode:", referralCode);
+    console.log("Верификация кошелька:", wallet, "с подписью:", signature, "timestamp:", timestamp, "referralId:", referralId);
 
     try {
-      try {
-        // Подготавливаем данные для запроса
-        const dataPost = {
-          timestamp: timestamp || Date.now(),
-          ref: referralCode ? 1 : 0, // Отправляем 1 если есть реферальный код
-          signature: signature,
-          wallet: wallet
-        };
+      // Преобразуем referralId в число
+      const refNumber = referralId ? parseInt(referralId, 10) : 0;
 
-        console.log('Отправка запроса:', dataPost);
-        const response = await axios.post(`${API_HOST}/api/verify`, dataPost, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          }
-        });
-
-        console.log('Получен ответ с статусом:', response.status);
-
-        const apiResponse = response.data;
-        console.log('Данные ответа:', apiResponse);
-
-        if ('token' in apiResponse) {
-          const authResponse = apiResponse as AuthVerifyResponse;
-
-          return {
-            token: authResponse.token || '',
-            payload: authResponse.token ? decodeJWT(authResponse.token) : null,
-          };
-        } else {
-          console.warn('Получен ответ в нестандартном формате:', apiResponse);
-          return {
-            token: apiResponse.token || '',
-            payload: null,
-          };
-        }
-      } catch (apiError) {
-        if (axios.isAxiosError(apiError)) {
-          console.error('Ошибка Axios:', apiError.message);
-          console.error('Статус ошибки:', apiError.response?.status);
-          console.error('Данные ошибки:', apiError.response?.data);
-
-          if (apiError.response?.status === 401) {
-            console.error('Ошибка аутентификации 401 Unauthorized. Проверьте правильность данных запроса или доступность сервера.');
-          }
-
-          if (apiError.code === 'ERR_NETWORK') {
-            console.error('Ошибка сети. Проверьте доступность сервера.');
-          }
-
-          if (apiError.code === 'ECONNABORTED') {
-            console.error('Таймаут соединения. Сервер не отвечает.');
-          }
-        } else {
-          console.error('Неизвестная ошибка при запросе:', apiError);
-        }
-
-        throw apiError;
-      }
-    } catch (error) {
-      console.error("Ошибка при верификации кошелька:", error);
-
-      return {
-        token: "",
-        payload: null,
+      // Подготавливаем данные для запроса
+      const dataPost = {
+        timestamp: timestamp || Date.now(),
+        ref: refNumber, // Теперь отправляем как число
+        signature: signature,
+        wallet: wallet
       };
+
+      console.log('Отправка запроса:', dataPost);
+      const response = await axios.post(`${API_HOST}/api/verify`, dataPost, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        }
+      });
+
+      console.log('Получен ответ с статусом:', response.status);
+
+      const apiResponse = response.data;
+      console.log('Данные ответа:', apiResponse);
+
+      if ('token' in apiResponse) {
+        const authResponse = apiResponse as AuthVerifyResponse;
+
+        return {
+          token: authResponse.token || '',
+          payload: authResponse.token ? decodeJWT(authResponse.token) : null,
+        };
+      } else {
+        console.warn('Получен ответ в нестандартном формате:', apiResponse);
+        return {
+          token: apiResponse.token || '',
+          payload: null,
+        };
+      }
+    } catch (apiError) {
+      if (axios.isAxiosError(apiError)) {
+        console.error('Ошибка Axios:', apiError.message);
+        console.error('Статус ошибки:', apiError.response?.status);
+        console.error('Данные ошибки:', apiError.response?.data);
+
+        if (apiError.response?.status === 401) {
+          console.error('Ошибка аутентификации 401 Unauthorized. Проверьте правильность данных запроса или доступность сервера.');
+        }
+
+        if (apiError.code === 'ERR_NETWORK') {
+          console.error('Ошибка сети. Проверьте доступность сервера.');
+        }
+
+        if (apiError.code === 'ECONNABORTED') {
+          console.error('Таймаут соединения. Сервер не отвечает.');
+        }
+      } else {
+        console.error('Неизвестная ошибка при запросе:', apiError);
+      }
+
+      throw apiError;
     }
   }
 
@@ -1001,9 +995,9 @@ export async function verifyWallet(
   signature: string,
   wallet: string,
   timestamp?: number,
-  referralCode?: string
+  referralId?: string
 ): Promise<VerifyResponse> {
-  return apiGeneral.verifyWallet(signature, wallet, timestamp, referralCode);
+  return apiGeneral.verifyWallet(signature, wallet, timestamp, referralId);
 }
 
 export async function checkPayment(): Promise<PaymentResponse> {
