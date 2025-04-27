@@ -1,4 +1,4 @@
-export type CryptoCard ={
+export type CryptoCard = {
   id: string
   name: string
   symbol: string
@@ -31,69 +31,72 @@ export type CryptoCard ={
 
 export const API_HOST = 'https://whales.trace.foundation';
 
-
 export const WS_ENDPOINT = 'wss://whales.trace.foundation/api/stream';
-
 
 export const API_ENDPOINTS = {
   verify: `${API_HOST}/api/verify`,
   payment: `${API_HOST}/api/payment`,
+  referral: `${API_HOST}/api/referral`,
 } as const;
 
 
 export interface JWTPayload {
-  createdAt: number;      
-  exp: number;           
-  iat: number;          
-  id: number;          
+  createdAt: number;
+  exp: number;
+  iat: number;
+  id: number;
   linkedWallet: string;
-  subExpAt: number;    
-  topupWallet: string; 
+  subExpAt: number;
+  topupWallet: string;
+  referrer?: string;    // Поле для реферера
+  referralCount?: number; // Счетчик рефералов
+  referralBonus?: number; // Добавляем поле для реферального бонуса
 }
 
 /**
  * Payment Response Interface
  */
 export interface PaymentResponse {
-  accessToken: string;         
-  expireAt: string;           
-  hasSubscription: boolean;   
-  success: boolean;          
+  accessToken: string;
+  expireAt: string;
+  hasSubscription: boolean;
+  success: boolean;
+  referralBonus?: number;    // Добавляем поле для реферального бонуса
 }
 
 
 export interface MarketData {
-  circulatingSupply: number; 
-  price: number;           
+  circulatingSupply: number;
+  price: number;
 }
 
 export interface HoldingsData {
-  top10: number;          
-  devHolds: number;       
-  insidersHolds: number;  
-  first70: number;        
+  top10: number;
+  devHolds: number;
+  insidersHolds: number;
+  first70: number;
 }
 
 export interface SocialLinks {
-  x?: string;            
-  web?: string;          
-  tg?: string;          
+  x?: string;
+  web?: string;
+  tg?: string;
 }
 
 export interface Trade {
-  signer: string;    
-  amtSol: number;    
-  timestamp: number;   
+  signer: string;
+  amtSol: number;
+  timestamp: number;
 }
 
 
 export interface NewSignalMessage {
-  token: string;           
-  name: string;          
-  symbol: string;        
-  logo: string;          
+  token: string;
+  name: string;
+  symbol: string;
+  logo: string;
   tokenCreatedAt: number;
-  createdAt: number;     
+  createdAt: number;
   market: MarketData;
   holdings: HoldingsData;
   socials?: SocialLinks;
@@ -101,7 +104,7 @@ export interface NewSignalMessage {
 }
 
 export interface UpdateSignalMessage {
-  token: string;         
+  token: string;
   market?: Partial<MarketData>;
   holdings?: Partial<HoldingsData>;
   trades?: Trade[];
@@ -120,7 +123,17 @@ export interface UpdateSignalMessage {
   noMint?: boolean;
   blacklist?: boolean;
   burnt?: string;
-  
+
+}
+
+export interface VerifyResponse {
+  token: string;
+  payload: JWTPayload | null;
+}
+
+export interface ReferralResponse {
+  refCount: number;
+  refEarnings: number;
 }
 
 export const API_EXAMPLES = {
@@ -145,8 +158,3 @@ export const API_EXAMPLES = {
     }
   }
 } as const;
-
-export interface VerifyResponse {
-  token: string;
-  payload: JWTPayload | null;
-} 

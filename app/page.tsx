@@ -1,19 +1,16 @@
 "use client";
 
-  import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Header } from "@/components/header";
 import { CryptoCard } from "@/components/crypto-card";
 import { PaymentModal } from "@/components/payment-modal";
-// import { mockCryptoCards, createNewCard } from "@/lib/mock-data";
 import { decodeJWT } from "@/lib/utils";
 import { usePhantomWallet } from "@/lib/hooks/usePhantomWallet";
+import { useReferral } from "@/lib/hooks/useReferral";
 import type { JWTPayload } from "@/lib/api/types";
 import { ConnectWalletModal } from '@/components/connect-wallet-modal';
 import { verifyWallet } from "@/lib/api/api-general";
 import { TestWebSocket } from "@/components/websocket";
-
-// Расширяем тип CryptoCardType
-// interface ExtendedCryptoCard {} // он больше не нужен
 
 // В начале файла добавим константы для ключей localStorage
 const STORAGE_KEYS = {
@@ -25,6 +22,7 @@ const STORAGE_KEYS = {
 
 export default function Home() {
   const { wallet, isConnecting, connect, disconnect } = usePhantomWallet();
+  const referralCode = useReferral(); // Добавляем использование хука реферальной системы
 
   // контролируем состояние модалки после монтирования, чтобы не было SSR-флика
   const [isWalletModalOpen, setIsWalletModalOpen] = useState<boolean>(false);
@@ -105,7 +103,12 @@ export default function Home() {
   const handleWalletConnection = useCallback(
     async (publicKey: string, signature: string, timestamp?: number) => {
       try {
-        const verifyResponse = await verifyWallet(signature, publicKey, timestamp);
+        const verifyResponse = await verifyWallet(
+          signature, 
+          publicKey, 
+          timestamp, 
+          referralCode ? "1" : undefined // Передаем "1" если есть реферал
+        );
   
         if (!verifyResponse.token) {
           console.error("Отсутствует токен в ответе сервера:", verifyResponse);
@@ -129,15 +132,17 @@ export default function Home() {
         if (!isSubscriptionValid) {
           setIsPaymentModalOpen(true);
         }
+
+        // Очищаем реферальный флаг после успешного подключения
+        localStorage.removeItem('whales_trace_has_referral');
       } catch (error) {
         console.error("Ошибка при обработке верификации кошелька:", error);
         alert("Ошибка при проверке подписи. Попробуйте снова.");
       }
     },
-    [setJwtPayload, setIsPaymentModalOpen, checkAndConnectWebSocket]
+    [referralCode, checkAndConnectWebSocket]
   );
-  
-  
+
   // Функция проверки статуса подписки
   const checkSubscriptionStatus = async (token: string): Promise<boolean> => {
     try {
@@ -187,9 +192,7 @@ export default function Home() {
     }
   };
 
-  // Модифицируем disconnectWallet
   const disconnectWallet = () => {
-    // Отключаем кошелек
     disconnect();
     
     // Очищаем localStorage
@@ -197,6 +200,7 @@ export default function Home() {
     localStorage.removeItem(STORAGE_KEYS.JWT_PAYLOAD);
     localStorage.removeItem(STORAGE_KEYS.SUBSCRIPTION);
     localStorage.removeItem(STORAGE_KEYS.TOKEN);
+    localStorage.removeItem('whales_trace_referral'); // Очищаем реферальный код
 
     // Сбрасываем состояние
     setJwtPayload(null);
@@ -204,7 +208,6 @@ export default function Home() {
     setIsLoading(true);
   };
 
-  // Модифицируем handleCheckPayment
   const handleCheckPayment = async () => {
     try {
       const token = localStorage.getItem(STORAGE_KEYS.TOKEN);

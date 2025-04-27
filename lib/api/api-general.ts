@@ -11,7 +11,8 @@ import {
   UpdateSignalMessage,
   CryptoCard,
   MarketData,
-  HoldingsData
+  HoldingsData,
+  ReferralResponse
 } from './types';
 import { decodeJWT, formatMarketCap } from "@/lib/utils";
 import axios from 'axios';
@@ -62,25 +63,28 @@ class ApiGeneralService {
    * @param signature подпись сообщения
    * @param wallet адрес кошелька
    * @param timestamp временная метка для синхронизации запроса
+   * @param referralCode реферальный код
    * @returns информация о верификации
    */
-  async verifyWallet(signature: string, wallet: string, timestamp?: number): Promise<VerifyResponse> {
-
-    console.log("Верификация кошелька:", wallet, "с подписью:", signature, "timestamp:", timestamp);
+  async verifyWallet(
+    signature: string,
+    wallet: string,
+    timestamp?: number,
+    referralCode?: string
+  ): Promise<VerifyResponse> {
+    console.log("Верификация кошелька:", wallet, "с подписью:", signature, "timestamp:", timestamp, "referralCode:", referralCode);
 
     try {
-      // Всегда используем реальное API
       try {
         // Подготавливаем данные для запроса
         const dataPost = {
           timestamp: timestamp || Date.now(),
-          ref: 1,
+          ref: referralCode ? 1 : 0, // Отправляем 1 если есть реферальный код
           signature: signature,
           wallet: wallet
         };
 
         console.log('Отправка запроса:', dataPost);
-
         const response = await axios.post(`${API_HOST}/api/verify`, dataPost, {
           headers: {
             'Content-Type': 'application/json',
@@ -861,6 +865,9 @@ class ApiGeneralService {
     return result;
   }
 
+  public getAccessToken(): string | null {
+    return this.accessToken;
+  }
 
   /**
    * Публичный метод для получения информации о состоянии соединения
@@ -990,16 +997,33 @@ export const apiGeneral = ApiGeneralService.getInstance();
 export const webSocketClient = apiGeneral;
 
 
-export async function verifyWallet(signature: string, wallet: string, timestamp?: number): Promise<VerifyResponse> {
-  return apiGeneral.verifyWallet(signature, wallet, timestamp);
+export async function verifyWallet(
+  signature: string,
+  wallet: string,
+  timestamp?: number,
+  referralCode?: string
+): Promise<VerifyResponse> {
+  return apiGeneral.verifyWallet(signature, wallet, timestamp, referralCode);
 }
 
 export async function checkPayment(): Promise<PaymentResponse> {
   return apiGeneral.checkPayment();
 }
 
-
-
+export async function getReferralStats(): Promise<ReferralResponse> {
+  try {
+    const response = await axios.get(API_ENDPOINTS.referral, {
+      headers: {
+        'Authorization': `Bearer ${apiGeneral.getAccessToken()}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Ошибка при получении реферальной статистики:', error);
+    return { refCount: 0, refEarnings: 0 };
+  }
+}
 
 export const convertToCardUpdates = (update: UpdateSignalMessage): Partial<CryptoCard> =>
   ApiGeneralService.getInstance().convertToCardUpdates(update);
