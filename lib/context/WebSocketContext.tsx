@@ -45,14 +45,12 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     return <>{children}</>;
   }
 
-  console.log('[WebSocketContext] Инициализация провайдера');
   
   const updateCountRef = useRef(0);
   
   const [refreshCounter, setRefreshCounter] = React.useState(0);
   const forceRefresh = React.useCallback(() => {
     updateCountRef.current++;
-    console.log(`[WebSocketContext] Принудительное обновление #${updateCountRef.current}`);
     setRefreshCounter(prev => prev + 1);
   }, []);
 
@@ -73,17 +71,14 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
   useEffect(() => {
     const currentCount = cards.length;
     if (currentCount !== prevCardsCountRef.current) {
-      console.log(`[WebSocketContext] Обновление числа карточек: ${prevCardsCountRef.current} -> ${currentCount}`);
       prevCardsCountRef.current = currentCount;
     }
   }, [cards.length]);
   
   useEffect(() => {
-    console.log(`[WebSocketContext] Текущее состояние: ${status}, карточек: ${cards.length}`);
     
     if (cards.length > 0) {
       cards.forEach(card => {
-        console.log(`[WebSocketContext] Карточка ${card.id}: marketCap=${card.marketCap}`);
       });
     }
   }, [cards, status, refreshCounter]);

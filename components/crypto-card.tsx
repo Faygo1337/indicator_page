@@ -250,9 +250,9 @@ export function CryptoCard({
     }
   }, [wsCardData, trackedData]);
 
-  useEffect(() => {
-    console.log("[CryptoCard] displayData:", displayData);
-  }, [displayData]);
+  // useEffect(() => {
+  //   console.log("[CryptoCard] displayData:", displayData);
+  // }, [displayData]);
 
   // const debouncedSetAnimate = useDebounce((fields: Record<string, boolean>) => {
   //   setAnimateFields(fields);

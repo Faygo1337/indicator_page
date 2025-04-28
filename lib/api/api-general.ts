@@ -65,7 +65,6 @@ class ApiGeneralService {
     timestamp?: number,
     referralId?: string
   ): Promise<VerifyResponse> {
-    console.log("Верификация кошелька:", wallet, "с подписью:", signature, "timestamp:", timestamp, "referralId:", referralId);
 
     try {
       // Преобразуем referralId в число
@@ -79,7 +78,6 @@ class ApiGeneralService {
         wallet: wallet
       };
 
-      console.log('Отправка запроса:', dataPost);
       const response = await axios.post(`${API_HOST}/api/verify`, dataPost, {
         headers: {
           'Content-Type': 'application/json',
@@ -87,10 +85,8 @@ class ApiGeneralService {
         }
       });
 
-      console.log('Получен ответ с статусом:', response.status);
 
       const apiResponse = response.data;
-      console.log('Данные ответа:', apiResponse);
 
       if ('token' in apiResponse) {
         const authResponse = apiResponse as AuthVerifyResponse;
@@ -100,34 +96,14 @@ class ApiGeneralService {
           payload: authResponse.token ? decodeJWT(authResponse.token) : null,
         };
       } else {
-        console.warn('Получен ответ в нестандартном формате:', apiResponse);
         return {
           token: apiResponse.token || '',
           payload: null,
         };
       }
-    } catch (apiError) {
-      if (axios.isAxiosError(apiError)) {
-        console.error('Ошибка Axios:', apiError.message);
-        console.error('Статус ошибки:', apiError.response?.status);
-        console.error('Данные ошибки:', apiError.response?.data);
-
-        if (apiError.response?.status === 401) {
-          console.error('Ошибка аутентификации 401 Unauthorized. Проверьте правильность данных запроса или доступность сервера.');
-        }
-
-        if (apiError.code === 'ERR_NETWORK') {
-          console.error('Ошибка сети. Проверьте доступность сервера.');
-        }
-
-        if (apiError.code === 'ECONNABORTED') {
-          console.error('Таймаут соединения. Сервер не отвечает.');
-        }
-      } else {
-        console.error('Неизвестная ошибка при запросе:', apiError);
-      }
-
-      throw apiError;
+    } catch (error) {
+      this.handleWebSocketError(error);
+      throw error;
     }
   }
 
@@ -138,13 +114,11 @@ class ApiGeneralService {
    */
   async checkPayment(walletAddress: string = ""): Promise<PaymentResponse> {
     try {
-      console.log("Начало проверки статуса платежа для:", walletAddress);
 
       // Реальная реализация запроса к API
       const url = API_ENDPOINTS.payment;
 
-      console.log("Отправка GET запроса к:", url);
-      console.log("Текущий токен:", this.accessToken?.substring(0, 10) + "...");
+
 
       const response = await axios.get(url, {
         headers: {
@@ -153,32 +127,17 @@ class ApiGeneralService {
         },
       });
 
-      console.log("Получен ответ от сервера:", {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers,
-      });
 
       // Получаем данные из response.data
       const data = response.data;
-      console.log("Данные ответа:", data);
 
       if (data.success && data.accessToken) {
-        console.log("Получен новый accessToken");
         this.accessToken = data.accessToken;
       }
 
       return data;
     } catch (error) {
-      console.error('Ошибка проверки платежа:', error);
-      if (axios.isAxiosError(error)) {
-        console.error('Детали ошибки:', {
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data,
-          headers: error.response?.headers,
-        });
-      }
+      this.handleWebSocketError(error);
       throw error;
     }
   }
@@ -193,13 +152,11 @@ class ApiGeneralService {
   async connect(token: string): Promise<void> {
     // Если уже подключены с тем же токеном - не переподключаемся
     if (this.connected && this.accessToken === token && this.connectionEstablished) {
-      console.log("WebSocket уже подключен с текущим токеном");
       return;
     }
 
     // Если уже идет процесс подключения - не запускаем новый
     if (this.connecting) {
-      console.log("WebSocket уже в процессе подключения");
       return;
     }
 
@@ -238,7 +195,6 @@ class ApiGeneralService {
   private initWebSocket(): void {
     // Защита от создания нескольких соединений одновременно
     if (this.attemptingReconnect) {
-      console.log("Уже выполняется попытка подключения");
       return;
     }
 
@@ -266,7 +222,6 @@ class ApiGeneralService {
 
         return;
       } catch (e) {
-        console.warn("Ошибка при закрытии существующего соединения:", e);
         this.ws = null;
       }
     }
@@ -292,7 +247,6 @@ class ApiGeneralService {
         return;
       }
 
-      console.log(`Создание WebSocket соединения: ${WS_ENDPOINT}`);
 
       this.messageReceivedFlag = false;
 
@@ -308,7 +262,6 @@ class ApiGeneralService {
       // Устанавливаем таймаут на подключение
       this.connectionTimeoutId = window.setTimeout(() => {
         if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
-          console.warn("Таймаут подключения к WebSocket, закрываем соединение");
           this.ws.close(4000, "Connection timeout");
           this.attemptingReconnect = false;
         }
@@ -325,7 +278,6 @@ class ApiGeneralService {
    * Обработчик открытия соединения
    */
   private handleOpen(): void {
-    console.log("WebSocket соединение установлено успешно");
 
     if (this.connectionTimeoutId) {
       clearTimeout(this.connectionTimeoutId);
@@ -362,7 +314,6 @@ class ApiGeneralService {
     try {
       // Используем правильный формат авторизации
       this.ws.send(JSON.stringify({ authToken: this.accessToken }));
-      console.log("Отправлено сообщение авторизации");
 
       // Установим флаг успешного подключения после отправки
       this.connectionEstablished = true;
@@ -390,11 +341,9 @@ class ApiGeneralService {
         return;
       }
 
-      console.log('[API] handleMessage', message);
 
       // Проверяем, является ли сообщение объектом
       if (!message || typeof message !== 'object') {
-        console.warn('[API] Полученное сообщение не является объектом:', message);
         return;
       }
 
@@ -403,39 +352,26 @@ class ApiGeneralService {
       // Проверяем есть ли у сообщения поле token и type
       if ('type' in msgObj && msgObj.type === 'update' && 'token' in msgObj && typeof msgObj.token === 'string') {
         const token = msgObj.token;
-        console.log('[API] Вызов обработчиков обновления для токена', token);
         this.rawUpdateCallbacks.forEach(cb => cb(token, msgObj as unknown as UpdateSignalMessage));
       } else if ('type' in msgObj && msgObj.type === 'new') {
-        console.log('[API] Вызов обработчиков новой карточки');
         this.newSignalCallbacks.forEach(cb => cb(msgObj as unknown as CryptoCard));
       }
       // Проверяем специальный случай - сообщение с token и market, но без type
       else if ('token' in msgObj && typeof msgObj.token === 'string' && 'market' in msgObj) {
         const token = msgObj.token as string;
-        console.log('[API] Вызов обработчиков обновления для токена (формат без type):', token);
 
-        // Создаем сообщение обновления с нужными полями
         const updateMessage: UpdateSignalMessage = {
           token: token,
           market: msgObj.market as Partial<MarketData>,
           holdings: msgObj.holdings as Partial<HoldingsData>
         };
 
-        // Преобразуем сообщение в понятный формат и передаем обработчикам
-        console.log('[API] Преобразованное сообщение:', updateMessage);
 
-        // Конвертируем сообщение в формат для карточки
         const cardUpdates = this.convertToCardUpdates(updateMessage);
-        console.log('[API] Обновления для карточки:', cardUpdates);
 
-        // Уведомляем подписчиков об обновлении сигнала
         this.notifyUpdateSignal(token, cardUpdates);
-      } else {
-        // Если сообщение имеет неизвестный формат, логируем его для отладки
-        console.warn('[API] Получено сообщение неизвестного формата:', msgObj);
       }
 
-      // Устанавливаем флаг, что мы получили сообщение
       this.messageReceivedFlag = true;
     } catch (err) {
       console.error('[API] Ошибка обработки сообщения:', err);
@@ -475,7 +411,6 @@ class ApiGeneralService {
     };
 
     const codeDescription = codeMap[event.code] || "Неизвестный код";
-    console.log(`WebSocket соединение закрыто: ${event.code} (${codeDescription})`);
 
     this.connected = false;
     this.connecting = false;
@@ -487,7 +422,6 @@ class ApiGeneralService {
     }
 
     if (event.code === 1000 || event.code === 1008) {
-      console.log("Не переподключаемся - закрытие было ожидаемым или из-за ошибки политики");
       return;
     }
 
@@ -504,7 +438,6 @@ class ApiGeneralService {
     this.reconnectAttempts++;
     const delay = this.reconnectTimeout * this.reconnectAttempts;
 
-    console.log(`Переподключение через ${delay} мс (попытка ${this.reconnectAttempts})`);
 
     setTimeout(() => {
       if (!this.connected && !this.connecting && this.accessToken) {
@@ -551,7 +484,6 @@ class ApiGeneralService {
     this.accessToken = null;
     this.reconnectAttempts = 0;
     this.messageReceivedFlag = false;
-    console.log("WebSocket отключен");
   }
 
   /**
@@ -718,7 +650,6 @@ class ApiGeneralService {
   public convertToCardUpdates(update: UpdateSignalMessage): Partial<CryptoCard> {
     const result: Partial<CryptoCard> = {};
 
-    console.log("[API] Обработка обновления:", update);
 
     if (update.market) {
       const price = update.market.price;
@@ -748,7 +679,6 @@ class ApiGeneralService {
         // Сохраняем новый marketCap
         this.previousMarketCaps.set(update.token, newMarketCap);
 
-        console.log(`[API] Рассчитан marketCap: ${result.marketCap}, ratio: ${result.priceChange}`);
       }
     }
 
@@ -772,11 +702,7 @@ class ApiGeneralService {
       }
     }
 
-    if (Object.keys(result).length === 0) {
-      console.warn(`[API] Внимание: Обновление не содержит изменений для UI (токен ${update.token})`);
-    } else {
-      console.log(`[API] Результат конвертации для ${update.token}:`, result);
-    }
+
 
     return result;
   }
@@ -829,7 +755,6 @@ class ApiGeneralService {
 
       // Проверяем, является ли сообщение объектом
       if (!parsedMessage || typeof parsedMessage !== 'object') {
-        console.warn('[API] Полученное сообщение не является объектом:', parsedMessage);
         return {
           type: 'unknown',
           data: null,
@@ -872,7 +797,15 @@ class ApiGeneralService {
     }
   }
 
+  private handleWebSocketError(error: unknown): void {
+    // Уведомляем всех подписчиков об ошибке
+    for (const callback of this.errorCallbacks) {
+      callback(error);
+    }
+  }
+
 }
+
 export const apiGeneral = ApiGeneralService.getInstance();
 
 

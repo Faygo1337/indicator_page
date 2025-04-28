@@ -11,8 +11,11 @@ const inter = Inter({ subsets: ["latin"] });
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: "WhalesTrace",
-  description: "Crypto whales tracking dashboard",
+  title: "WhalesTrace - Solana Indicator",
+  description: "Most reliable indicator for Solana based on whales activity with W/R around 80% ",
+  icons: {
+    icon: "/logo.jpg",
+  },
 };
 
 export default function RootLayout({

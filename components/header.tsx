@@ -27,7 +27,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { JWTPayload } from "@/lib/api/types";
-
+import { useError } from '@/lib/hooks/useError';
 interface HeaderProps {
   wallet: string | null;
   isConnecting: boolean;
@@ -46,7 +46,7 @@ export function Header({
   const [isCopied, setIsCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [referralStats, setReferralStats] = useState({ refCount: 0, refEarnings: 0 });
-
+  const { handleError } = useError();
   // Получаем JWT из localStorage при монтировании
   const [jwtPayload, setJwtPayload] = useState<JWTPayload | null>(() => {
     if (typeof window !== 'undefined') {
@@ -56,9 +56,12 @@ export function Header({
     return null;
   });
 
-  // Получаем реферальную статистику
+  // Добавляем состояние для отслеживания был ли уже сделан запрос
+  const [hasLoadedReferrals, setHasLoadedReferrals] = useState(false);
+
+  // Обновляем fetchReferralStats чтобы запрос делался только один раз
   const fetchReferralStats = useCallback(async () => {
-    if (!wallet) return;
+    if (!wallet || hasLoadedReferrals) return;
     
     try {
       setIsLoading(true);
@@ -72,16 +75,20 @@ export function Header({
         }
       });
 
-      if (!response.ok) throw new Error('Failed to fetch referral stats');
+      if (!response.ok) {
+        throw new Error('Failed to fetch referral stats');
+      }
 
       const data = await response.json();
       setReferralStats(data);
+      // Помечаем что данные уже загружены
+      setHasLoadedReferrals(true);
     } catch (error) {
-      console.error('Error fetching referral stats:', error);
+      handleError(error, 'Failed to fetch referral stats');
     } finally {
       setIsLoading(false);
     }
-  }, [wallet]);
+  }, [wallet, hasLoadedReferrals, handleError]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -93,19 +100,18 @@ export function Header({
 
     // Формируем реферальную ссылку на основе ID из JWT
     if (jwtPayload?.id) {
-      const baseUrl = window.location.origin;
-      setReferralLink(`${baseUrl}/?ref=${jwtPayload.id}`);
+      setReferralLink(`${window.location.origin}/?ref=${jwtPayload.id}`);
     }
 
-    // Получаем реферальную статистику при открытии диалога
-    if (pageDialogOpen) {
+    // Получаем реферальную статистику только при первом открытии диалога
+    if (pageDialogOpen && !hasLoadedReferrals) {
       fetchReferralStats();
     }
 
     return () => {
       window.removeEventListener("resize", handleResize);
     };
-  }, [jwtPayload, pageDialogOpen, fetchReferralStats]);
+  }, [jwtPayload, pageDialogOpen, fetchReferralStats, hasLoadedReferrals]);
 
   // Обновляем JWT payload при изменении токена
   useEffect(() => {

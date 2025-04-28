@@ -94,7 +94,6 @@ export default function Home() {
       const { publicKey, signature, timestamp } = result;
       handleWalletConnection(publicKey, signature, timestamp);
     } catch (error) {
-      // console.error("Ошибка подключения:", error);
       handleError("CONNECT_WALLET_FAILED");
     }
   };
@@ -111,8 +110,7 @@ export default function Home() {
         );
   
         if (!verifyResponse.token) {
-          console.error("Отсутствует токен в ответе сервера:", verifyResponse);
-          alert("Ошибка аутентификации. Проверьте подключение и попробуйте снова.");
+          handleError("CONNECT_WALLET_FAILED");
           return;
         }
   
@@ -138,18 +136,17 @@ export default function Home() {
         // Очищаем реферальный ID после успешного подключения
         localStorage.removeItem('whales_trace_referral_id');
       } catch (error) {
-        console.error("Ошибка при обработке верификации кошелька:", error);
-        alert("Ошибка при проверке подписи. Попробуйте снова.");
+        handleError(error, 'Wallet connection failed');
+        setIsWalletModalOpen(true);
+        setIsPaymentModalOpen(false);
       }
     },
-    [referralCode, checkAndConnectWebSocket]
+    [handleError, checkAndConnectWebSocket, referralCode]
   );
 
   // Функция проверки статуса подписки
   const checkSubscriptionStatus = async (token: string): Promise<boolean> => {
     try {
-      console.log('[Payment Check] Отправка GET запроса для проверки подписки...');
-
       const response = await fetch('https://whales.trace.foundation/api/payment', {
         method: 'GET',
         headers: {
@@ -159,37 +156,33 @@ export default function Home() {
       });
 
       const responseText = await response.text();
-      console.log('[Payment Check] Сырой ответ от сервера:', responseText);
+      // console.log('[Payment Check] Сырой ответ от сервера:', responseText);
       
       let data;
       try {
         data = JSON.parse(responseText);
-        console.log('[Payment Check] Разобранный ответ:', data);
+       
       } catch (e) {
-        console.error('[Payment Check] Ошибка парсинга ответа:', e);
-        console.log('[Payment Check] Невалидный JSON ответ:', responseText);
+        console.error('Error parsing:', e);
         return false;
       }
       
       if (!response.ok) {
-        console.warn('[Payment Check] Ошибка запроса:', data);
         return false;
       }
 
       if (data?.hasSubscription === undefined) {
-        console.warn('[Payment Check] В ответе отсутствует поле hasSubscription:', data);
         return false;
       }
 
       // Проверяем наличие нового токена в ответе
       if (data.accessToken) {
-        console.log('[Payment Check] Получен новый токен доступа');
         localStorage.setItem(STORAGE_KEYS.TOKEN, data.accessToken);
       }
       
       return data.hasSubscription === true;
     } catch (error) {
-      console.error('[Payment Check] Ошибка при проверке статуса подписки:', error);
+      handleError(error, 'Subscription check failed');
       return false;
     }
   };
@@ -251,9 +244,6 @@ export default function Home() {
       const isValid = await checkAndConnectWebSocket();
       
       if (isValid) {
-        console.log('Подписка успешно активирована');
-        
-        // Декодируем JWT токен для обновления данных
         const decodedPayload = decodeJWT(token);
         if (decodedPayload) {
           localStorage.setItem(STORAGE_KEYS.JWT_PAYLOAD, JSON.stringify(decodedPayload));
@@ -261,7 +251,7 @@ export default function Home() {
         }
       }
     } catch (error) {
-      console.error("Error checking payment:", error);
+      handleError(error, 'Payment verification failed');
     }
   };
 

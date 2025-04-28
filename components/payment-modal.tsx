@@ -84,22 +84,21 @@ export function PaymentModal({
 
       const connection = new Connection('https://api.devnet.solana.com');
 
-      console.log('Инициализация отправки транзакции...');
+
       const signature = await sendPaymentTransaction(
         connection,
         wallet,
         walletAddress,
         amountSOL
       );
-      console.log('Транзакция отправлена, сигнатура:', signature);
 
       // Получаем и показываем детали транзакции
       try {
         const details = await getTransactionDetails(connection, signature);
         setTransactionDetails(details);
-        console.log('Детали транзакции:', details);
+
       } catch (error) {
-        console.error('Ошибка при получении деталей транзакции:', error);
+        console.error('Error retrieving transaction details:', error);
       }
 
       setStatus('checking');
@@ -108,20 +107,17 @@ export function PaymentModal({
       let isConfirmed = false;
       const checkTxInterval = setInterval(async () => {
         try {
-          console.log('Проверка статуса транзакции...');
           isConfirmed = await checkTransactionStatus(connection, signature);
           
           if (isConfirmed) {
-            console.log('Транзакция подтверждена!');
             clearInterval(checkTxInterval);
             
             // Обновляем детали транзакции после подтверждения
             try {
               const updatedDetails = await getTransactionDetails(connection, signature);
               setTransactionDetails(updatedDetails);
-              console.log('Обновленные детали транзакции:', updatedDetails);
             } catch (error) {
-              console.error('Ошибка при обновлении деталей транзакции:', error);
+              console.error('Error retrieving transaction details:', error);
             }
             
             setStatus('confirming');
@@ -133,7 +129,6 @@ export function PaymentModal({
 
             const checkPaymentInterval = setInterval(async () => {
               try {
-                console.log('Попытка проверки платежа:', retryCount + 1);
                 await onCheckPayment();
                 const token = localStorage.getItem('whales_trace_token');
                 if (token) {
@@ -161,28 +156,26 @@ export function PaymentModal({
                 if (retryCount >= maxRetries) {
                   clearInterval(checkPaymentInterval);
                   setIsProcessing(false);
-                  setError('Время ожидания подтверждения подписки истекло. Пожалуйста, свяжитесь с поддержкой.');
+                  setError('Subscription confirmation timeout. Please contact support.');
                 }
               } catch (error) {
-                console.log('Ошибка при проверке платежа, продолжаем попытки...');
                 retryCount++;
                 
                 if (retryCount >= maxRetries) {
                   clearInterval(checkPaymentInterval);
                   setIsProcessing(false);
-                  setError('Время ожидания подтверждения подписки истекло. Пожалуйста, свяжитесь с поддержкой.');
+                    setError('Subscription confirmation timeout. Please contact support.');
                 }
               }
             }, 5000); // Проверка каждые 5 секунд
           }
         } catch (error) {
-          console.error('Ошибка при проверке статуса транзакции:', error);
+          console.error('Error checking status transaction:', error);
         }
       }, 2000);
 
     } catch (error) {
-      console.error('Ошибка оплаты:', error);
-      setError(error instanceof Error ? error.message : 'Ошибка оплаты');
+      setError('Error sending transaction. Please check wallet address and amount.');
       setIsProcessing(false);
     }
   };

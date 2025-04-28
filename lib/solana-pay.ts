@@ -15,10 +15,10 @@ export async function sendPaymentTransaction(
   amountSOL: number
 ): Promise<string> {
   try {
-    console.log('Начало отправки транзакции:');
-    console.log('- От:', wallet?.publicKey?.toString());
-    console.log('- Кому:', toWallet);
-    console.log('- Сумма:', amountSOL, 'SOL');
+    // console.log('Начало отправки транзакции:');
+    // console.log('- От:', wallet?.publicKey?.toString());
+    // console.log('- Кому:', toWallet);
+    // console.log('- Сумма:', amountSOL, 'SOL');
 
     if (!wallet?.publicKey) {
       throw new Error('Wallet not connected');
@@ -47,13 +47,9 @@ export async function sendPaymentTransaction(
     transaction.recentBlockhash = blockhash;
     transaction.feePayer = fromPublicKey;
 
-    console.log('Подписание транзакции...');
     const signedTransaction = await wallet.signTransaction(transaction);
-    console.log('Транзакция подписана успешно');
 
-    console.log('Отправка транзакции...');
     const signature = await connection.sendRawTransaction(signedTransaction.serialize());
-    console.log('Транзакция отправлена. Сигнатура:', signature);
 
     await connection.confirmTransaction(signature);
 
@@ -70,12 +66,7 @@ export async function checkTransactionStatus(
   signature: string
 ): Promise<boolean> {
   try {
-    console.log('Проверка статуса транзакции:', signature);
     const signatureStatus = await connection.getSignatureStatus(signature);
-
-    console.log('Полный статус транзакции:', signatureStatus);
-    console.log('- Статус подтверждения:', signatureStatus.value?.confirmationStatus);
-    console.log('- Количество подтверждений:', signatureStatus.value?.confirmations);
 
     if (signatureStatus.value?.err) {
       console.error('Ошибка в транзакции:', signatureStatus.value.err);
@@ -85,10 +76,9 @@ export async function checkTransactionStatus(
     const isConfirmed = signatureStatus.value?.confirmationStatus === 'confirmed' ||
       signatureStatus.value?.confirmationStatus === 'finalized';
 
-    console.log('Транзакция подтверждена:', isConfirmed);
     return isConfirmed;
   } catch (error) {
-    console.error('Ошибка проверки статуса транзакции:', error);
+    console.error('Error checked status transaction:', error);
     return false;
   }
 }
@@ -104,10 +94,7 @@ export async function getTransactionDetails(
   signature: string
 ) {
   try {
-    console.log('[Transaction] Получение деталей транзакции:', signature);
-    console.log('[Transaction] Explorer URL:', `https://solscan.io/tx/${signature}?cluster=devnet`);
 
-    // Получаем подробную информацию о транзакции
     const response = await connection.getTransaction(signature, {
       maxSupportedTransactionVersion: 0,
       commitment: 'confirmed'
@@ -156,7 +143,6 @@ export async function getTransactionDetails(
       })
     };
 
-    console.log('[Transaction] Детали транзакции:', JSON.stringify(transactionDetails, null, 2));
     return transactionDetails;
 
   } catch (error) {

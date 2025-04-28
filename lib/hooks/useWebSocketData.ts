@@ -36,7 +36,7 @@ export function useWebSocketData(): [
     setCards(prevCards => {
       const index = prevCards.findIndex(card => card.id === token);
       const timestamp = Date.now();
-  
+
       if (index === -1) {
         const newCard: ExtendedCryptoCard = {
           id: token,
@@ -62,9 +62,9 @@ export function useWebSocketData(): [
         };
         return [newCard, ...prevCards].slice(0, MAX_CARDS);
       }
-  
+
       const existingCard = prevCards[index];
-  
+
       const updatedCard: ExtendedCryptoCard = {
         ...existingCard,
         ...updates,
@@ -87,7 +87,7 @@ export function useWebSocketData(): [
         _lastUpdated: timestamp,
         _updateId: `update-${timestamp}`,
       };
-  
+
       return [
         ...prevCards.slice(0, index),
         updatedCard,
@@ -95,7 +95,7 @@ export function useWebSocketData(): [
       ];
     });
   }, []);
-  
+
 
   const handleError = useCallback((err: unknown) => {
     console.error('[WebSocket] Ошибка:', err);
@@ -107,7 +107,6 @@ export function useWebSocketData(): [
   const reconnect = useCallback(() => {
     const jwtToken = getJwtFromStorage();
     if (!jwtToken) {
-      console.warn('[WebSocket] JWT отсутствует, переподключение невозможно');
       return;
     }
 
@@ -118,7 +117,6 @@ export function useWebSocketData(): [
     webSocketClient
       .connect(jwtToken)
       .then(() => {
-        console.log('[WebSocket] Переподключение успешно');
         setStatus('connected');
       })
       .catch((err: Error) => {
@@ -134,25 +132,21 @@ export function useWebSocketData(): [
   }, []);
 
   useEffect(() => {
-    console.log('[useWebSocketData] Инициализация WebSocket...');
     const jwtToken = getJwtFromStorage();
     if (!jwtToken) {
-      console.warn('[WebSocket] JWT отсутствует, WebSocket не подключён');
       return;
     }
 
     setStatus('connecting');
 
     webSocketClient.onNewSignal((data: CryptoCard) => {
-      console.log('[NEW SIGNAL]:', data); // ✅
       if (!data?.id) {
-        console.warn('⚠️ Пропуск newSignal без ID:', data);
         return;
       }
-      
+
       applyCardUpdate(data.id, data);
     });
-    
+
     webSocketClient.onError(handleError);
 
     webSocketClient.onRawUpdateSignal((token: string, rawUpdate: UpdateSignalMessage) => {
@@ -163,7 +157,6 @@ export function useWebSocketData(): [
     webSocketClient
       .connect(jwtToken)
       .then(() => {
-        console.log('[WebSocket] Соединение установлено');
         setStatus('connected');
       })
       .catch((err: Error) => {
@@ -173,7 +166,6 @@ export function useWebSocketData(): [
       });
 
     return () => {
-      console.log('[useWebSocketData] Очистка...');
       webSocketClient.disconnect();
     };
   }, [applyCardUpdate, handleError]);

@@ -49,7 +49,6 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
   const checkJwtToken = useCallback(() => {
     const token = localStorage.getItem("whales_trace_token");
     if (!token) {
-      console.warn("[WebSocket] JWT токен отсутствует");
       return null;
     }
     return token;
@@ -59,7 +58,6 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
   const connectWebSocket = useCallback(() => {
     const jwtToken = checkJwtToken();
     if (!jwtToken) {
-      console.warn("[WebSocket] Подключение невозможно - отсутствует JWT токен");
       return;
     }
 
@@ -67,15 +65,12 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
     webSocketRef.current = ws;
 
     ws.onopen = () => {
-      console.log("[WebSocket] Соединение открыто");
       ws.send(JSON.stringify({ authToken: jwtToken }));
-      console.log("[WebSocket] Отправлен токен:", jwtToken);
       setCards([]);
     };
 
     ws.onmessage = (event) => {
       try {
-        console.log("Получено сообщение:", event.data);
         const data = JSON.parse(event.data);
 
         // Проверка на служебные сообщения
@@ -86,13 +81,11 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
           data.token === "ping" ||
           data.token === "info"
         ) {
-          console.log("Служебное сообщение, пропускаем");
           return;
         }
 
         // Дополнительная проверка на валидные данные
         if (typeof data.token !== "string" || data.token.trim() === "") {
-          console.warn("Пропускаем сообщение с невалидным токеном:", data);
           return;
         }
 
@@ -107,9 +100,11 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
     //   console.error("WebSocket ошибка:", err);
     // };
 
-    ws.onclose = () => {
-      console.log("WebSocket соединение закрыто");
-    };
+    // ws.onclose = () => {
+    //   webSocketRef.current = null;
+    //   setCards([]);
+    // };
+
 
     return () => {
       if (webSocketRef.current) {
@@ -121,7 +116,7 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
   // Функция отключения WebSocket
   const disconnectWebSocket = useCallback(() => {
     if (webSocketRef.current) {
-      console.log("[WebSocket] Закрытие соединения");
+
       webSocketRef.current.close();
       webSocketRef.current = null;
       setCards([]);
@@ -131,18 +126,14 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
   // Эффект для управления подключением/отключением WebSocket
   useEffect(() => {
     if (!wallet || !hasSubscription) {
-      console.log("[WebSocket] Отключение - кошелек не подключен или нет подписки");
       disconnectWebSocket();
       return;
     }
 
     const jwtToken = checkJwtToken();
     if (!jwtToken) {
-      console.warn("[WebSocket] Подключение невозможно - отсутствует JWT токен");
       return;
     }
-
-    console.log("[WebSocket] Инициализация подключения");
     connectWebSocket();
 
     return () => {
@@ -201,32 +192,32 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
   }, []);
 
   // Добавляем taп обработки сообщений
-  const isUpdateSignalMessage = (message: WebsocketMessage): boolean => {
-    if (
-      !message ||
-      !message.token ||
-      typeof message.token !== "string" ||
-      message.token.trim() === ""
-    ) {
-      return false;
-    }
+  // const isUpdateSignalMessage = (message: WebsocketMessage): boolean => {
+  //   if (
+  //     !message ||
+  //     !message.token ||
+  //     typeof message.token !== "string" ||
+  //     message.token.trim() === ""
+  //   ) {
+  //     return false;
+  //   }
 
-    // Проверяем наличие хотя бы одного из полей обновления
-    const hasMarketData =
-      message.market &&
-      typeof message.market === "object" &&
-      Object.keys(message.market).length > 0;
-    const hasHoldingsData =
-      message.holdings &&
-      typeof message.holdings === "object" &&
-      Object.keys(message.holdings).length > 0;
-    const hasTradesData =
-      message.trades &&
-      Array.isArray(message.trades) &&
-      message.trades.length > 0;
+  //   // Проверяем наличие хотя бы одного из полей обновления
+  //   const hasMarketData =
+  //     message.market &&
+  //     typeof message.market === "object" &&
+  //     Object.keys(message.market).length > 0;
+  //   const hasHoldingsData =
+  //     message.holdings &&
+  //     typeof message.holdings === "object" &&
+  //     Object.keys(message.holdings).length > 0;
+  //   const hasTradesData =
+  //     message.trades &&
+  //     Array.isArray(message.trades) &&
+  //     message.trades.length > 0;
 
-    return hasMarketData || hasHoldingsData || hasTradesData || false;
-  };
+  //   return hasMarketData || hasHoldingsData || hasTradesData || false;
+  // };
 
   function safeString(value: unknown, defaultValue: string): string {
     if (value === null || value === undefined) {
@@ -490,7 +481,6 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
       }
     });
 
-    console.log(`Создана новая карточка для ${tokenId}:`, newCard);
     return newCard;
   };
 
@@ -499,19 +489,18 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
     const tokenId = message.token;
 
     if (!tokenId || typeof tokenId !== "string" || tokenId.trim() === "") {
-      console.warn("Сообщение без валидного ID токена", message);
       return;
     }
 
-    console.log(`Обработка сообщения для токена: ${tokenId}`, message);
+    // console.log(`Обработка сообщения для токена: ${tokenId}`, message);
 
-    // Проверяем, является ли сообщение сигналом обновления
-    const isUpdate = isUpdateSignalMessage(message);
-    console.log(`Сообщение для ${tokenId} является обновлением: ${isUpdate}`);
+    // // Проверяем, является ли сообщение сигналом обновления
+    // const isUpdate = isUpdateSignalMessage(message);
+    // console.log(`Сообщение для ${tokenId} является обновлением: ${isUpdate}`);
 
     // Проверяем и преобразуем значения в научной нотации для holdings
     if (message.holdings && typeof message.holdings === "object") {
-      console.log(`Исходные значения holdings:`, message.holdings);
+
 
       // Преобразуем значения в scientific notation в нормальные числа
       const convertScientificNotation = (obj: Record<string, unknown>) => {
@@ -527,11 +516,7 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
             if (!isNaN(numValue)) {
               obj[key] = numValue;
               // Логируем если значение было в научной нотации
-              if (String(value).includes("e")) {
-                console.log(
-                  `Преобразована научная нотация для ${key}: ${value} -> ${numValue}`
-                );
-              }
+              
             }
           }
         });
@@ -539,7 +524,6 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
       };
 
       message.holdings = convertScientificNotation(message.holdings);
-      console.log(`Преобразованные значения holdings:`, message.holdings);
     }
 
     // Создаем или обновляем карточку
@@ -552,22 +536,17 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
 
         // Если карточка существует - обновляем её
         if (existingIndex >= 0 && prevCards[existingIndex]) {
-          console.log(`Обновляем существующую карточку: ${tokenId}`);
 
           // Глубокое копирование массива и существующей карточки для избежания мутаций
           const updatedCards = structuredClone(prevCards);
           const existingCard = updatedCards[existingIndex];
 
           if (!existingCard) {
-            console.warn(`Карточка с индексом ${existingIndex} не найдена`);
             return prevCards;
           }
 
           // Обновляем только те поля, которые есть в сообщении и не null/undefined
-          console.log(
-            `Обновление полей для карточки ${tokenId}:`,
-            Object.keys(message).filter((k) => k !== "token")
-          );
+         
 
           // Проверяем обновляемые поля
           const fieldsBeingUpdated = Object.keys(message).filter(
@@ -577,7 +556,6 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
               message[key] !== null
           );
 
-          console.log(`Поля для обновления: ${fieldsBeingUpdated.join(", ")}`);
 
           Object.entries(message).forEach(([key, value]) => {
             // Обработка timestamp создания токена
@@ -600,11 +578,6 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
                   (updatedCards[existingIndex] as Record<string, unknown>)[
                     key
                   ] = value;
-                } else if ((existingCard[key] as string)?.trim()) {
-                  // Если новое значение пустое, а старое нет - сохраняем старое
-                  console.log(
-                    `Сохраняем существующее значение для ${key}: ${existingCard[key]}`
-                  );
                 }
               }
               // Для объектов и массивов проверяем, что они не пустые
@@ -614,13 +587,14 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
                     (updatedCards[existingIndex] as Record<string, unknown>)[
                       key
                     ] = value;
-                  } else if (
-                    Array.isArray(existingCard[key]) &&
-                    (existingCard[key] as unknown[]).length > 0
-                  ) {
-                    // Сохраняем существующий массив, если новый пустой
-                    console.log(`Сохраняем существующий массив для ${key}`);
-                  }
+                  } 
+                  // else if (
+                  //   Array.isArray(existingCard[key]) &&
+                  //   (existingCard[key] as unknown[]).length > 0
+                  // ) {
+                  //   // Сохраняем существующий массив, если новый пустой
+                  //   console.log(`Сохраняем существующий массив для ${key}`);
+                  // }
                 } else if (value !== null && Object.keys(value).length > 0) {
                   // Для вложенных объектов выполняем глубокое слияние с приоритетом существующих значений
                   const currentValue =
@@ -676,9 +650,7 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
                           newMarket[field] === null ||
                           newMarket[field] === 0)
                       ) {
-                        console.log(
-                          `Сохраняем существующее значение для market.${field}: ${existingMarket[field]}`
-                        );
+                       
                         newMarket[field] = existingMarket[field];
                       }
                     });
@@ -686,18 +658,18 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
                 }
                 // Для остальных типов данных проверяем на пустые значения
                 else {
-                  // Для числовых полей сохраняем существующие значения, если новые равны 0
-                  if (
-                    typeof value === "number" &&
-                    value === 0 &&
-                    typeof existingCard[key] === "number" &&
-                    (existingCard[key] as number) > 0
-                  ) {
-                    // Сохраняем существующее значение
-                    console.log(
-                      `Сохраняем существующее числовое значение для ${key}: ${existingCard[key]}`
-                    );
-                  } else {
+                  // // Для числовых полей сохраняем существующие значения, если новые равны 0
+                  // if (
+                  //   typeof value === "number" &&
+                  //   value === 0 &&
+                  //   typeof existingCard[key] === "number" &&
+                  //   (existingCard[key] as number) > 0
+                  // ) {
+                  //   // Сохраняем существующее значение
+                  //   console.log(
+                  //     `Сохраняем существующее числовое значение для ${key}: ${existingCard[key]}`
+                  //   );
+                  // } else {
                     // Для boolean значений используем nullish coalescing
                     if (
                       typeof existingCard[key] === "boolean" &&
@@ -713,7 +685,7 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
                     }
                   }
                 }
-              }
+              // }
             }
           });
 
@@ -842,24 +814,24 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
               );
             }
 
-            console.log(`Обновлены данные holdings для ${tokenId}:`, {
-              top10: (
-                updatedCards[existingIndex] as unknown as { top10: string }
-              ).top10,
-              devWalletHold: (
-                updatedCards[existingIndex] as unknown as {
-                  devWalletHold: string;
-                }
-              ).devWalletHold,
-              insiders: (
-                updatedCards[existingIndex] as unknown as { insiders: string }
-              ).insiders,
-              first70BuyersHold: (
-                updatedCards[existingIndex] as unknown as {
-                  first70BuyersHold: string;
-                }
-              ).first70BuyersHold,
-            });
+            // console.log(`Обновлены данные holdings для ${tokenId}:`, {
+            //   top10: (
+            //     updatedCards[existingIndex] as unknown as { top10: string }
+            //   ).top10,
+            //   devWalletHold: (
+            //     updatedCards[existingIndex] as unknown as {
+            //       devWalletHold: string;
+            //     }
+            //   ).devWalletHold,
+            //   insiders: (
+            //     updatedCards[existingIndex] as unknown as { insiders: string }
+            //   ).insiders,
+            //   first70BuyersHold: (
+            //     updatedCards[existingIndex] as unknown as {
+            //       first70BuyersHold: string;
+            //     }
+            //   ).first70BuyersHold,
+            // });
           }
 
           // Проверяем, что все необходимые поля присутствуют в обновленной карточке
@@ -912,9 +884,6 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
           // Применяем дефолтные значения где необходимо
           Object.entries(requiredDefaults).forEach(([key, defaultValue]) => {
             if (updatedCard[key] === undefined || updatedCard[key] === null) {
-              console.log(
-                `Устанавливаем дефолтное значение для ${key}: ${defaultValue}`
-              );
               updatedCard[key] = defaultValue;
             }
           });
@@ -925,9 +894,6 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
           );
           return sortCardsByAge(validCards).slice(0, MAX_CARDS);
         }
-
-        // Если карточки не существует - создаем новую
-        console.log(`Добавляем новую карточку: ${tokenId}`);
 
         // Создаем новую карточку с полными данными
         const newCard = createNewCard(message);

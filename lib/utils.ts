@@ -30,30 +30,26 @@ export function isSubscriptionValid(payload: JWTPayload | null): boolean {
   return expireDate > now
 }
 
-/**
- * Логирует декодированный JWT токен в консоль с форматированием
- * @param token - JWT токен в формате строки
- * @returns Декодированный объект JWT токена или null, если декодирование не удалось
- */
-export function logDecodedJWT(token: string): JWTPayload | null {
-  const decoded = decodeJWT(token)
-  
-  if (decoded) {
-    console.group('Decode JWT:')
-    console.log('ID:', decoded.id)
-    console.log('linkedWallet:', decoded.linkedWallet)
-    console.log('topupWallet:', decoded.topupWallet)
-    console.log('subExpAt:', new Date(decoded.subExpAt).toLocaleString())
-    console.log('createdAt:', new Date(decoded.createdAt).toLocaleString())
-    console.log('decoded.exp * 1000:', new Date(decoded.exp * 1000).toLocaleString())
-    console.log('decoded.iat * 1000:', new Date(decoded.iat * 1000).toLocaleString())
-    console.groupEnd()
-  } else {
-    console.error('Не удалось декодировать JWT токен')
-  }
-  
-  return decoded
-}
+
+// export function logDecodedJWT(token: string): JWTPayload | null {
+//   const decoded = decodeJWT(token)
+
+//   if (decoded) {
+//     console.group('Decode JWT:')
+//     console.log('ID:', decoded.id)
+//     console.log('linkedWallet:', decoded.linkedWallet)
+//     console.log('topupWallet:', decoded.topupWallet)
+//     console.log('subExpAt:', new Date(decoded.subExpAt).toLocaleString())
+//     console.log('createdAt:', new Date(decoded.createdAt).toLocaleString())
+//     console.log('decoded.exp * 1000:', new Date(decoded.exp * 1000).toLocaleString())
+//     console.log('decoded.iat * 1000:', new Date(decoded.iat * 1000).toLocaleString())
+//     console.groupEnd()
+//   } else {
+//     console.error('Не удалось декодировать JWT токен')
+//   }
+
+//   return decoded
+// }
 
 /**
  * Форматирует числовое значение с процентом
@@ -83,13 +79,13 @@ export function formatCurrency(value: number, decimals = 5): string {
  */
 export function extractNumber(value: string, defaultValue = 0): number {
   if (!value) return defaultValue;
-  
+
   // Извлекаем все цифры и точку
   const matches = value.match(/[-+]?([0-9]*\.[0-9]+|[0-9]+)/);
   if (matches && matches[0]) {
     return parseFloat(matches[0]);
   }
-  
+
   return defaultValue;
 }
 
@@ -127,12 +123,12 @@ export function delay(ms: number): Promise<void> {
  */
 export function extractNumericValue(formattedValue?: string): number {
   if (!formattedValue) return 0;
-  
+
   // Используем регулярное выражение для извлечения числа
   // Работает с форматами "$1,234.56", "1,234.56%", "×1.2" и т.д.
   const matches = formattedValue.replace(/[^0-9.-]/g, '').match(/[-+]?([0-9]*\.[0-9]+|[0-9]+)/);
   if (!matches || !matches[0]) return 0;
-  
+
   return parseFloat(matches[0]);
 }
 
@@ -187,34 +183,33 @@ export function formatMarketCap(value: number | string): string {
  */
 export function parseTokenAge(ageString: string): number {
   if (!ageString) return 0;
-  
+
   // Проверка на пустую строку или неподдерживаемые форматы
-  if (!ageString || ageString.trim() === "" || 
-      ageString.toLowerCase() === "new" || 
-      ageString === "N/A") {
+  if (!ageString || ageString.trim() === "" ||
+    ageString.toLowerCase() === "new" ||
+    ageString === "N/A") {
     return 0;
   }
 
   // Проверяем формат "×N" (множитель)
   if (ageString.includes('×')) {
-    console.warn(`Формат множителя не поддерживается для возраста токена: ${ageString}`);
     return 0; // Возвращаем 0, чтобы не влиять на сортировку
   }
 
   try {
     let totalSeconds = 0;
-    
+
     // Регулярное выражение для захвата всех временных интервалов (цифра + единица измерения)
     const timePattern = /(\d+)\s*([dhms])/gi;
     let match;
     let foundMatch = false;
-    
+
     // Поиск всех совпадений времени в строке
     while ((match = timePattern.exec(ageString)) !== null) {
       foundMatch = true;
       const value = parseInt(match[1], 10);
       const unit = match[2].toLowerCase();
-      
+
       if (!isNaN(value)) {
         switch (unit) {
           case 'd':
@@ -229,12 +224,10 @@ export function parseTokenAge(ageString: string): number {
           case 's':
             totalSeconds += value; // секунды
             break;
-          default:
-            console.warn(`Неизвестная единица измерения времени: ${unit} в строке: ${ageString}`);
         }
       }
     }
-    
+
     // Если не нашли ни одного совпадения с форматом времени, пробуем интерпретировать как число
     if (!foundMatch) {
       // Пытаемся извлечь число из строки
@@ -244,23 +237,19 @@ export function parseTokenAge(ageString: string): number {
         if (!isNaN(numValue)) {
           // Предполагаем, что это число в днях
           totalSeconds = numValue * 86400;
-          console.log(`Интерпретируем "${ageString}" как ${numValue} дней (${totalSeconds} секунд)`);
         }
       } else {
-        console.warn(`Неподдерживаемый формат возраста токена: ${ageString}`);
         return 0;
       }
     }
-    
+
     // Проверка на валидность результата
     if (totalSeconds < 0) {
-      console.warn(`Получено отрицательное значение времени из строки: ${ageString}`);
       return 0;
     }
-    
+
     return totalSeconds;
   } catch (error) {
-    console.error(`Ошибка при парсинге возраста токена "${ageString}":`, error);
     return 0;
   }
 }

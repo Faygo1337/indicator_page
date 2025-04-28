@@ -225,19 +225,16 @@ export function usePhantomWallet(): PhantomMobileWalletState {
       const nonce = params.get('nonce');
 
       if (!phantomKey || !data || !nonce) {
-        console.log('Missing required parameters');
         return null;
       }
 
       const savedData = localStorage.getItem('dapp_keypair');
       if (!savedData) {
-        console.log('No saved keypair found');
         return null;
       }
 
       const { secretKey, pendingConnection } = JSON.parse(savedData);
       if (!pendingConnection) {
-        console.log('No pending connection');
         return null;
       }
 
@@ -290,7 +287,6 @@ export function usePhantomWallet(): PhantomMobileWalletState {
 
   useEffect(() => {
     if (window.location.search.includes('phantom_encryption_public_key')) {
-      console.log('Detected Phantom redirect, processing...');
       handleReturnFromPhantom().catch((error) => {
         console.error('Failed to handle Phantom redirect:', error);
       });
@@ -301,12 +297,10 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     const provider = getProvider();
     if (provider) {
       const handleAccountChange = () => {
-        console.log('Account changed in Phantom wallet');
         resetWalletState();
       };
 
       const handleDisconnect = () => {
-        console.log('Phantom wallet disconnected');
         resetWalletState();
       };
 
