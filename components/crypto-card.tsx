@@ -516,7 +516,7 @@ export function CryptoCard({
         ) : (
           <ArrowDownRight className="h-2 w-2" />
         )}
-        <span>×{multiplier.toFixed(2)}</span>
+        <span>×{(1/multiplier).toFixed(2)}</span>
       </Badge>
     );
   };
