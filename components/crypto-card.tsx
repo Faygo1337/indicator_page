@@ -936,9 +936,7 @@ export function CryptoCard({
             <Image
               src={GMGNLogo}
               alt="GMGNLogo"
-              width={40}
-              height={40}
-              className="rounded-full"
+              className="rounded-full w-10 h-3"
             />
           </a>
         </Button>
