@@ -194,6 +194,32 @@ export default function Home() {
     }
   };
 
+  // Добавляем useEffect для отслеживания состояния кошелька и модальных окон
+  useEffect(() => {
+    if (!wallet) {
+      // Если кошелек не подключен - показываем модалку подключения
+      setIsWalletModalOpen(true);
+      setIsPaymentModalOpen(false);
+    } else {
+      // Если кошелек подключен
+      setIsWalletModalOpen(false);
+      
+      // Проверяем подписку только при подключенном кошельке
+      const checkSubscription = async () => {
+        const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+        if (!token) return;
+
+        const isValid = await checkSubscriptionStatus(token);
+        if (!isValid) {
+          setIsPaymentModalOpen(true);
+        }
+      };
+
+      checkSubscription();
+    }
+  }, [wallet]); // Зависимость от wallet для отслеживания изменений
+
+  // Обновляем функцию отключения кошелька
   const disconnectWallet = () => {
     disconnect();
     
@@ -204,10 +230,13 @@ export default function Home() {
     localStorage.removeItem(STORAGE_KEYS.TOKEN);
     localStorage.removeItem('whales_trace_referral'); // Очищаем реферальный код
 
-    // Сбрасываем состояние
+    // Сбрасываем состояния
     setJwtPayload(null);
     setHasSubscription(false);
     setIsLoading(true);
+    
+    // При отключении кошелька сразу показываем модалку подключения
+    setIsWalletModalOpen(true);
   };
 
   const handleCheckPayment = async () => {
@@ -238,14 +267,12 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Модальное окно подключения кошелька */}
+      {/* Модальное окно подключения кошелька - показываем всегда когда нет кошелька */}
       <ConnectWalletModal
-        open={isWalletModalOpen}
-        onConnect={() => {
-          connectWallet();
-          setIsWalletModalOpen(false);
-        }}
+        open={!wallet}
+        onConnect={connectWallet}
       />
+      
       <Header
         wallet={wallet}
         isConnecting={isConnecting}
@@ -266,9 +293,10 @@ export default function Home() {
         )}
       </main>
 
-      {jwtPayload && (
+      {/* Модальное окно оплаты - показываем только при подключенном кошельке и отсутствии подписки */}
+      {jwtPayload && wallet && (
         <PaymentModal
-          open={isPaymentModalOpen}
+          open={isPaymentModalOpen && !hasSubscription}
           onOpenChange={setIsPaymentModalOpen}
           walletAddress={jwtPayload.topupWallet}
           onCheckPayment={handleCheckPayment}
