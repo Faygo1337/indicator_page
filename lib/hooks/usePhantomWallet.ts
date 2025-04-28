@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { PublicKey } from '@solana/web3.js';
 import nacl from 'tweetnacl';
 import bs58 from 'bs58';
+import { useError } from '@/lib/hooks/useError';
 
 // Типы для Phantom Wallet
 interface PhantomWindow extends Window {
@@ -51,6 +52,8 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     isMobileDevice: false,
     deepLink: null,
   });
+  const { handleError } = useError();
+
 
 
   useEffect(() => {
@@ -133,7 +136,8 @@ export function usePhantomWallet(): PhantomMobileWalletState {
 
       const provider = getProvider();
       if (!provider) {
-        throw new Error('Phantom wallet not installed');
+        handleError(new Error('Phantom wallet not installed'));
+        return;
       }
 
       const resp = await provider.connect();
@@ -143,7 +147,6 @@ export function usePhantomWallet(): PhantomMobileWalletState {
       try {
         const timestamp = Date.now();
         const message = new TextEncoder().encode(`Signing in to Trace with wallet: ${walletAddress} TS: ${timestamp}`);
-
         const signedMessage = await provider.signMessage(message, 'utf8');
         const signature = bs58.encode(signedMessage.signature);
 
@@ -163,6 +166,7 @@ export function usePhantomWallet(): PhantomMobileWalletState {
         };
       } catch (error) {
         console.error('Error signing message:', error);
+
         throw error;
       }
     } catch (error) {

@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { CryptoCard as CryptoCardType } from "@/lib/api/types";
 import { CryptoCard } from "@/components/crypto-card";
+
 import { formatMarketCap } from "@/lib/utils";
 
 // Расширенный тип для карточек с дополнительными полями
@@ -38,55 +39,37 @@ interface WebsocketMessage {
   [key: string]: unknown;
 }
 
-export function TestWebSocket() {
-
+export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription: boolean, wallet: string | null }) {
   const [cards, setCards] = useState<ExtendedCryptoCard[]>([]);
   const webSocketRef = useRef<WebSocket | null>(null);
   const MAX_CARDS = 8;
-  // Добавляем таймер для обновления возраста токенов в реальном времени
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Функция для безопасного получения строкового значения с fallback
-  const safeString = (value: unknown, fallback: string = ""): string => {
-    if (
-      value === undefined ||
-      value === null ||
-      (typeof value === "string" && value.trim() === "")
-    ) {
-      return fallback;
+  // Функция проверки JWT токена
+  const checkJwtToken = useCallback(() => {
+    const token = localStorage.getItem("whales_trace_token");
+    if (!token) {
+      console.warn("[WebSocket] JWT токен отсутствует");
+      return null;
     }
-    return String(value);
-  };
+    return token;
+  }, []);
 
-  // Прямое подключение к WebSocket
-  useEffect(() => {
+  // Функция подключения к WebSocket
+  const connectWebSocket = useCallback(() => {
+    const jwtToken = checkJwtToken();
+    if (!jwtToken) {
+      console.warn("[WebSocket] Подключение невозможно - отсутствует JWT токен");
+      return;
+    }
+
     const ws = new WebSocket("wss://whales.trace.foundation/api/stream");
     webSocketRef.current = ws;
 
-    // Безопасное получение токена
-    let token = localStorage.getItem("whales_trace_token");
-    try {
-      const savedToken = localStorage.getItem("whales_trace_token");
-      if (
-        savedToken &&
-        typeof savedToken === "string" &&
-        savedToken.trim() !== ""
-      ) {
-        token = savedToken.trim();
-      }
-    } catch (error) {
-      console.error("Ошибка при получении токена:", error);
-    }
-
-    // Обработчики событий WebSocket
     ws.onopen = () => {
-      console.log("WebSocket соединение открыто");
-
-      // Отправка токена авторизации
-      ws.send(JSON.stringify({ authToken: token }));
-      console.log("Отправлен токен:", token);
-
-      // Очищаем карты при новом подключении, чтобы получить свежие данные
+      console.log("[WebSocket] Соединение открыто");
+      ws.send(JSON.stringify({ authToken: jwtToken }));
+      console.log("[WebSocket] Отправлен токен:", jwtToken);
       setCards([]);
     };
 
@@ -120,9 +103,9 @@ export function TestWebSocket() {
       }
     };
 
-    ws.onerror = (err) => {
-      console.error("WebSocket ошибка:", err);
-    };
+    // ws.onerror = (err) => {
+    //   console.error("WebSocket ошибка:", err);
+    // };
 
     ws.onclose = () => {
       console.log("WebSocket соединение закрыто");
@@ -133,7 +116,39 @@ export function TestWebSocket() {
         webSocketRef.current.close();
       }
     };
+  }, [checkJwtToken]);
+
+  // Функция отключения WebSocket
+  const disconnectWebSocket = useCallback(() => {
+    if (webSocketRef.current) {
+      console.log("[WebSocket] Закрытие соединения");
+      webSocketRef.current.close();
+      webSocketRef.current = null;
+      setCards([]);
+    }
   }, []);
+
+  // Эффект для управления подключением/отключением WebSocket
+  useEffect(() => {
+    if (!wallet || !hasSubscription) {
+      console.log("[WebSocket] Отключение - кошелек не подключен или нет подписки");
+      disconnectWebSocket();
+      return;
+    }
+
+    const jwtToken = checkJwtToken();
+    if (!jwtToken) {
+      console.warn("[WebSocket] Подключение невозможно - отсутствует JWT токен");
+      return;
+    }
+
+    console.log("[WebSocket] Инициализация подключения");
+    connectWebSocket();
+
+    return () => {
+      disconnectWebSocket();
+    };
+  }, [wallet, hasSubscription, connectWebSocket, disconnectWebSocket, checkJwtToken]);
 
   // Функция для сортировки карточек по времени создания
   const sortCardsByAge = (
@@ -212,6 +227,20 @@ export function TestWebSocket() {
 
     return hasMarketData || hasHoldingsData || hasTradesData || false;
   };
+
+  function safeString(value: unknown, defaultValue: string): string {
+    if (value === null || value === undefined) {
+      return defaultValue;
+    }
+    
+    if (typeof value === 'string') {
+      return value.trim() || defaultValue;
+    }
+    
+    // Handle non-string values by converting to string
+    const stringValue = String(value).trim();
+    return stringValue || defaultValue;
+  }
 
   // Функция для создания новой карточки
   const createNewCard = (message: WebsocketMessage): ExtendedCryptoCard => {
@@ -932,3 +961,5 @@ export function TestWebSocket() {
     </div>
   );
 }
+
+

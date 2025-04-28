@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get('url');
-  
+
   if (!url) {
     return NextResponse.json(
       { error: 'URL параметр обязателен' },
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const response = await fetch(url);
-    
+
     if (!response.ok) {
       return NextResponse.json(
         { error: `Ошибка при получении изображения: ${response.status}` },

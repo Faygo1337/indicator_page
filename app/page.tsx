@@ -10,8 +10,8 @@ import { useReferral } from "@/lib/hooks/useReferral";
 import type { JWTPayload } from "@/lib/api/types";
 import { ConnectWalletModal } from '@/components/connect-wallet-modal';
 import { verifyWallet } from "@/lib/api/api-general";
-import { TestWebSocket } from "@/components/websocket";
-
+import { ConnectWebSocket } from "@/components/websocket";
+import { useError } from '@/lib/hooks/useError';
 // В начале файла добавим константы для ключей localStorage
 const STORAGE_KEYS = {
   WALLET: "whales_trace_wallet",
@@ -23,7 +23,7 @@ const STORAGE_KEYS = {
 export default function Home() {
   const { wallet, isConnecting, connect, disconnect } = usePhantomWallet();
   const referralCode = useReferral(); // Добавляем использование хука реферальной системы
-
+  const { handleError } = useError();
   // контролируем состояние модалки после монтирования, чтобы не было SSR-флика
   const [isWalletModalOpen, setIsWalletModalOpen] = useState<boolean>(false);
   useEffect(() => {
@@ -94,8 +94,8 @@ export default function Home() {
       const { publicKey, signature, timestamp } = result;
       handleWalletConnection(publicKey, signature, timestamp);
     } catch (error) {
-      console.error("Ошибка подключения:", error);
-      alert("Ошибка подключения кошелька. Попробуйте снова.");
+      // console.error("Ошибка подключения:", error);
+      handleError("CONNECT_WALLET_FAILED");
     }
   };
 
@@ -259,7 +259,10 @@ export default function Home() {
             {skeletonCards}
           </div>
         ) : (
-          <TestWebSocket />
+          <ConnectWebSocket 
+            hasSubscription={hasSubscription} 
+            wallet={wallet} 
+          />
         )}
       </main>
 
@@ -274,3 +277,4 @@ export default function Home() {
     </div>
   );
 }
+
