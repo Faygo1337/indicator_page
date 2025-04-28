@@ -42,13 +42,6 @@ class ApiGeneralService {
   private updateSignalCallbacks: ((token: string, updates: Partial<CryptoCard>) => void)[] = [];
   private errorCallbacks: ((error: unknown) => void)[] = [];
 
-  // Добавляем параметры для поддержания соединения (heartbeat)
-  private heartbeatIntervalId: number | null = null;
-  private heartbeatInterval = 30000; // 60 секунд между пингами
-  private lastPongTime = 0;
-  private missedPongs = 0;
-  private maxMissedPongs = 3;
-
   private constructor() { }
 
   static getInstance(): ApiGeneralService {
@@ -350,9 +343,6 @@ class ApiGeneralService {
     // Устанавливаем флаг успешного соединения сразу после авторизации
     // Это предотвратит повторные попытки соединения
     this.connectionEstablished = true;
-
-    // Запускаем механизм пингов для поддержания соединения
-    this.startHeartbeat();
   }
 
   /**
@@ -382,60 +372,6 @@ class ApiGeneralService {
     }
   }
 
-  /**
-   * Запуск механизма пингов для поддержания соединения
-   */
-  private startHeartbeat(): void {
-    // Очищаем предыдущий интервал, если он был
-    if (this.heartbeatIntervalId !== null) {
-      clearInterval(this.heartbeatIntervalId);
-      this.heartbeatIntervalId = null;
-    }
-
-    // Сбрасываем счетчики
-    this.lastPongTime = Date.now();
-    this.missedPongs = 0;
-
-    // Устанавливаем новый интервал для отправки пингов
-    this.heartbeatIntervalId = window.setInterval(() => {
-      this.sendPing();
-    }, this.heartbeatInterval);
-
-    console.log("Запущен механизм heartbeat для поддержания соединения");
-  }
-
-  /**
-   * Отправка ping-сообщения серверу
-   */
-  private sendPing(): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.warn("WebSocket не подключен. Пинг не отправлен.");
-      return;
-    }
-
-    try {
-      // Проверяем, не пропустили ли мы pong с прошлого раза
-      const currentTime = Date.now();
-      const timeSinceLastPong = currentTime - this.lastPongTime;
-
-      if (timeSinceLastPong > this.heartbeatInterval * 1.5) {
-        this.missedPongs++;
-        console.warn(`Пропущен pong (${this.missedPongs}/${this.maxMissedPongs})`);
-
-        if (this.missedPongs >= this.maxMissedPongs) {
-          console.error("Превышено максимальное количество пропущенных pong-ответов");
-          this.reconnect();
-          return;
-        }
-      }
-
-      // Отправляем ping для поддержания соединения
-      this.ws.send(JSON.stringify({ ping: true }));
-      console.log("Отправлен ping-запрос");
-    } catch (error) {
-      console.error("Ошибка отправки ping:", error);
-    }
-  }
   public onRawUpdateSignal(callback: (token: string, raw: UpdateSignalMessage) => void): void {
     this.rawUpdateCallbacks.push(callback);
   }
@@ -463,14 +399,6 @@ class ApiGeneralService {
       }
 
       const msgObj = message as Record<string, unknown>;
-
-      // Сначала проверяем, это pong?
-      if ('pong' in msgObj) {
-        this.lastPongTime = Date.now();
-        this.missedPongs = 0;
-        console.log('[API] Получен pong');
-        return;
-      }
 
       // Проверяем есть ли у сообщения поле token и type
       if ('type' in msgObj && msgObj.type === 'update' && 'token' in msgObj && typeof msgObj.token === 'string') {
@@ -591,12 +519,6 @@ class ApiGeneralService {
   disconnect(): void {
     this.connecting = false;
     this.connectionEstablished = false;
-
-    // Останавливаем пинги
-    if (this.heartbeatIntervalId !== null) {
-      clearInterval(this.heartbeatIntervalId);
-      this.heartbeatIntervalId = null;
-    }
 
     if (this.connectionTimeoutId) {
       clearTimeout(this.connectionTimeoutId);
@@ -886,7 +808,7 @@ class ApiGeneralService {
    * @returns обработанное сообщение с данными или null при ошибке
    */
   public processWebSocketMessage(message: string): {
-    type: 'new' | 'update' | 'pong' | 'unknown';
+    type: 'new' | 'update' | 'unknown';
     data: Record<string, unknown> | null;
     cardUpdates?: Partial<CryptoCard>;
     error?: string;
@@ -915,11 +837,6 @@ class ApiGeneralService {
         };
       }
 
-      // Проверяем тип сообщения
-      if ('pong' in parsedMessage) {
-        return { type: 'pong', data: parsedMessage };
-      }
-
       // Проверяем есть ли явное поле type
       if ('type' in parsedMessage) {
         const msgType = parsedMessage.type as string;
@@ -939,41 +856,12 @@ class ApiGeneralService {
         }
       }
 
-      // Специальный случай - сообщение с token и market/holdings, но без type
-      if ('token' in parsedMessage && (('market' in parsedMessage) || ('holdings' in parsedMessage))) {
-        const token = parsedMessage.token as string;
-
-        // Создаем сообщение обновления с нужными полями
-        const updateMessage: UpdateSignalMessage = {
-          token: token
-        };
-
-        // Добавляем market если есть
-        if ('market' in parsedMessage && parsedMessage.market) {
-          updateMessage.market = parsedMessage.market as unknown as Partial<MarketData>;
-        }
-
-        // Добавляем holdings если есть
-        if ('holdings' in parsedMessage && parsedMessage.holdings) {
-          updateMessage.holdings = parsedMessage.holdings as unknown as Partial<HoldingsData>;
-        }
-
-        // Конвертируем в формат карточки
-        const cardUpdates = this.convertToCardUpdates(updateMessage);
-
-        return {
-          type: 'update',
-          data: parsedMessage,
-          cardUpdates
-        };
-      }
-
-      // Неизвестный формат
       return {
         type: 'unknown',
         data: parsedMessage,
-        error: 'Неизвестный формат сообщения'
+        error: 'Неизвестный тип сообщения'
       };
+
     } catch (err) {
       console.error('[API] Ошибка обработки сообщения:', err);
       return {
