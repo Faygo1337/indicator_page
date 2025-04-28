@@ -60,21 +60,29 @@ interface CryptoCardProps {
 
 const ANIMATION_DURATION = 1000; // 1 секунда для анимации
 
-// Функция для расчета коэффициента изменения цены
-// const calculatePriceRatio = (currentMarketCap: string, previousMarketCap?: string): number => {
-//   if (!previousMarketCap) return 1;
+// Функция для преобразования строки market cap в число с учетом суффиксов
+const convertMarketCapToValue = (marketCap: string): number => {
+  if (!marketCap || marketCap === 'N/A') return 0;
 
-//   // Извлекаем числовые значения из строк с форматированием
-//   const currentValue = extractNumericValue(currentMarketCap);
-//   const previousValue = extractNumericValue(previousMarketCap);
+  // Очищаем строку от всего кроме чисел, точки и суффикса
+  const cleanStr = marketCap.trim();
+  const numStr = cleanStr.replace(/[^\d.KMBkmb]/g, '');
+  
+  // Извлекаем числовое значение и суффикс
+  const value = parseFloat(numStr);
+  const suffix = cleanStr.slice(-1).toUpperCase();
 
-//   if (isNaN(currentValue) || isNaN(previousValue) || previousValue === 0) {
-//     return 1;
-//   }
+  if (isNaN(value)) return 0;
 
-//   // Рассчитываем отношение
-//   return currentValue / previousValue;
-// };
+  // Применяем множитель в зависимости от суффикса
+  const multipliers: { [key: string]: number } = {
+    'K': 1_000,
+    'M': 1_000_000,
+    'B': 1_000_000_000
+  };
+
+  return value * (multipliers[suffix] || 1);
+};
 
 export function CryptoCard({
   data,
@@ -291,15 +299,26 @@ export function CryptoCard({
 
   // Рассчитываем коэффициент изменения marketCap
   const getPriceChangeInfo = useMemo(() => {
-    const prevCapStr = prevData?.marketCap || '';
-    const currCapStr = displayData?.marketCap || '';
-    const prevValue = extractNumericValue(prevCapStr);
-    const currValue = extractNumericValue(currCapStr);
-    const multiplier = currValue / (prevValue || 1);
-    const diff = Math.abs(multiplier - 1);
-    const isUp = currValue >= prevValue;
+    if (!data?.marketCap || !prevData?.marketCap) {
+      return { isUp: true, multiplier: 1, diff: 0 };
+    }
+
+    // Преобразуем строковые значения в числа с учетом суффиксов
+    const currentValue = convertMarketCapToValue(data.marketCap);
+    const previousValue = convertMarketCapToValue(prevData.marketCap);
+
+    if (currentValue === 0 || previousValue === 0) {
+      return { isUp: true, multiplier: 1, diff: 0 };
+    }
+
+    // Вычисляем изменение
+    const changeRatio = currentValue / previousValue;
+    const isUp = changeRatio >= 1;
+    const multiplier = isUp ? changeRatio : 1 / changeRatio;
+    const diff = Math.abs(1 - changeRatio);
+
     return { isUp, multiplier, diff };
-  }, [displayData?.marketCap, prevData?.marketCap]);
+  }, [data?.marketCap, prevData?.marketCap]);
 
   const getUpdateStyle = (field: string) => {
     if (field === "marketCap" && marketCapClass) {
