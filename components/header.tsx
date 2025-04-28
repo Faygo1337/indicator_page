@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/tooltip";
 import type { JWTPayload } from "@/lib/api/types";
 import { useError } from '@/lib/hooks/useError';
+import { AnimatedDialog } from "./ui/animated-dialog";
+import { motion } from "framer-motion";
 interface HeaderProps {
   wallet: string | null;
   isConnecting: boolean;
@@ -238,84 +240,97 @@ export function Header({
         </div>
       </div>
 
-      <Dialog open={pageDialogOpen} onOpenChange={setPageDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold">Referral system</DialogTitle>
-            <DialogDescription className="text-sm text-gray-400">
-            Share your referral link with your friends and get bonuses!
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="flex flex-col space-y-4">
-            {/* Статистика рефералов */}
-            <div className="bg-purple-900/20 border border-purple-700/30 rounded-lg p-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-sm text-gray-400">Referrals attracted:</div>
-                  <div className="text-xl font-semibold text-purple-300">
-                    {isLoading ? (
-                      <div className="h-7 w-16 animate-pulse bg-purple-800/30 rounded" />
-                    ) : (
-                      referralStats.refCount
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-400">Earned:</div>
-                  <div className="text-xl font-semibold text-green-400">
-                    {isLoading ? (
-                      <div className="h-7 w-20 animate-pulse bg-purple-800/30 rounded" />
-                    ) : (
-                      `${referralStats.refEarnings} SOL`
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Реферальная ссылка */}
-            <div className="grid w-full items-center gap-1.5">
-              <label htmlFor="referral-link" className="text-sm text-gray-400">
-              Your referral link:
-              </label>
-              <div className="flex w-full items-center space-x-2">
-                <div className="relative flex-1">
-                  <Input
-                    id="referral-link"
-                    value={referralLink}
-                    readOnly
-                    className="font-mono text-sm bg-purple-900/20 border-purple-700/30 text-purple-300 focus-visible:ring-purple-500 pr-[85px]"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleCopyReferralLink}
-                    className={cn(
-                      "absolute right-2 top-1/2 -translate-y-1/2 h-7 text-xs transition-all duration-200",
-                      isCopied 
-                        ? "text-purple-300 bg-purple-900/40" 
-                        : "text-purple-400 hover:text-purple-300 hover:bg-purple-900/30"
-                    )}
-                  >
-                    {isCopied ? "Copied!" : "Copy"}
-                  </Button>
-                </div>
-              </div>
-
-              {/* Инструкция */}
-              <div className="mt-4 space-y-2">
-                <h4 className="font-medium text-sm text-gray-300">How it works:</h4>
-                <ul className="text-sm text-gray-400 space-y-1 list-disc list-inside">
-                  <li>Share your referral link with your friends</li>
-                  <li>When they connect their wallet through your link, you will be registered as a referrer</li>
-                  <li>You will receive a bonus for successfully activating a subscription through your link</li>
-                </ul>
-              </div>
+      <AnimatedDialog open={pageDialogOpen} onOpenChange={setPageDialogOpen}>
+  <div className="sm:max-w-md">
+    <DialogHeader>
+      <DialogTitle className="text-lg font-semibold">Referral system</DialogTitle>
+      <DialogDescription className="text-sm text-gray-400 mb-4">
+        Share your referral link with your friends and get bonuses!
+      </DialogDescription>
+    </DialogHeader>
+    
+    <div className="flex flex-col space-y-4">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.3 }}
+        className="bg-purple-900/20 border border-purple-700/30 rounded-lg p-4"
+      >
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <div className="text-sm text-gray-400">Referrals attracted:</div>
+            <div className="text-xl font-semibold text-purple-300">
+              {isLoading ? (
+                <div className="h-7 w-16 animate-pulse bg-purple-800/30 rounded" />
+              ) : (
+                referralStats.refCount
+              )}
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+          <div>
+            <div className="text-sm text-gray-400">Earned:</div>
+            <div className="text-xl font-semibold text-green-400">
+              {isLoading ? (
+                <div className="h-7 w-20 animate-pulse bg-purple-800/30 rounded" />
+              ) : (
+                `${referralStats.refEarnings} SOL`
+              )}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.3 }}
+        className="grid w-full items-center gap-1.5"
+      >
+        <label htmlFor="referral-link" className="text-sm text-gray-400">
+          Your referral link:
+        </label>
+        <div className="flex w-full items-center space-x-2">
+          <div className="relative flex-1">
+            <Input
+              id="referral-link"
+              value={referralLink}
+              readOnly
+              className="font-mono text-sm bg-purple-900/20 border-purple-700/30 text-purple-300 focus-visible:ring-purple-500 pr-[85px]"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCopyReferralLink}
+              aria-label={isCopied ? "Link copied" : "Copy referral link"}
+              className={cn(
+                "absolute right-2 top-1/2 -translate-y-1/2 h-7 text-xs transition-all duration-200",
+                isCopied 
+                  ? "text-purple-300 bg-purple-900/40" 
+                  : "text-purple-400 hover:text-purple-300 hover:bg-purple-900/30"
+              )}
+            >
+              {isCopied ? "Copied!" : "Copy"}
+            </Button>
+          </div>
+        </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4, duration: 0.3 }}
+        className="mt-4 space-y-2"
+      >
+        <h4 className="font-medium text-sm text-gray-300">How it works:</h4>
+        <ul className="text-sm text-gray-400 space-y-1 list-disc list-inside">
+          <li>Share your referral link with your friends</li>
+          <li>When they connect their wallet through your link, you will be registered as a referrer</li>
+          <li>You will receive a bonus for successfully activating a subscription through your link</li>
+        </ul>
+      </motion.div>
+    </div>
+  </div>
+</AnimatedDialog>
     </header>
   );
 }

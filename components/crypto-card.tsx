@@ -45,6 +45,8 @@ import TokenAgeIcon from "@/public/tokenage-icon.svg";
 import First70Icon from "@/public/first70-icon.svg";
 import DevWalletIcon from "@/public/devwallet-icon.svg";
 import Top10Icon from "@/public/top10-icon.svg";
+import { motion } from "framer-motion";
+import { AnimatedHoverCard } from "./ui/animated-hover-card";
 // Расширенный тип для поддержки метаданных обновления
 interface ExtendedCryptoCard extends CryptoCardType {
   _receivedAt?: number;
@@ -761,8 +763,8 @@ export function CryptoCard({
             style={{ marginTop: "1.6rem" }}
           >
             <div className="flex items-center gap-3">
-              <HoverCard openDelay={0} closeDelay={100}>
-                <HoverCardTrigger asChild>
+              <AnimatedHoverCard
+                trigger={
                   <Button
                     variant="outline"
                     size="sm"
@@ -771,72 +773,86 @@ export function CryptoCard({
                     <BarChart3 className="h-3 w-3" />
                     View trades
                   </Button>
-                </HoverCardTrigger>
-                <HoverCardContent
-                  side="top"
-                  align="start"
-                  className="w-auto p-2 bg-gradient-to-br from-[#1A1A1A] to-[#141414] border border-gray-700 rounded-md text-gray-200"
-                  
+                }
+                className="w-auto p-2 bg-gradient-to-br from-[#1A1A1A] to-[#141414] border border-gray-700 rounded-md text-gray-200"
+              >
+                <motion.div 
+                  className="space-y-0.5"
+                  initial="hidden"
+                  animate="visible"
+                  variants={{
+                    hidden: { opacity: 0 },
+                    visible: {
+                      opacity: 1,
+                      transition: {
+                        staggerChildren: 0.05
+                      }
+                    }
+                  }}
                 >
-                  <div className="space-y-0.5">
-                    {displayData?.whales &&
-                      (() => {
-                        const walletSums: { [key: string]: number } = {};
+                  {displayData?.whales &&
+                    (() => {
+                      const walletSums: { [key: string]: number } = {};
 
-                        displayData.whales.forEach(
-                          (whale: { count: string; amount: string }) => {
-                            const amountStr = whale.amount.split(" ")[0];
-                            const amount = parseFloat(amountStr);
+                      displayData.whales.forEach(
+                        (whale: { count: string; amount: string }) => {
+                          const amountStr = whale.amount.split(" ")[0];
+                          const amount = parseFloat(amountStr);
+                          const wallet = whale.count;
+                          walletSums[wallet] = (walletSums[wallet] || 0) + amount;
+                        }
+                      );
 
-                            const wallet = whale.count;
+                      return Object.entries(walletSums).map(
+                        ([wallet, sum], index) => {
+                          const formattedWallet =
+                            wallet.length > 8
+                              ? `${wallet.slice(0, 4)}..${wallet.slice(-4)}`
+                              : wallet;
 
-                            walletSums[wallet] =
-                              (walletSums[wallet] || 0) + amount;
-                          }
-                        );
-
-                        return Object.entries(walletSums).map(
-                          ([wallet, sum], index) => {
-                            const formattedWallet =
-                              wallet.length > 8
-                                ? `${wallet.slice(0, 4)}..${wallet.slice(-4)}`
-                                : wallet;
-
-                            return (
-                              <div
-                                key={index}
-                                className="text-xs whitespace-nowrap font-mono tracking-tight transition-colors duration-200 hover:bg-gray-800/50 hover:rounded-sm group"
-                              >
-                                <div className="flex items-center">
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="10"
-                                    height="10"
-                                    fill="#6B7280"
-                                    className="bi bi-chevron-right transition-colors duration-200 group-hover:fill-purple-400"
-                                    viewBox="0 0 16 16"
-                                  >
-                                    <path
-                                      fillRule="evenodd"
-                                      d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"
-                                    />
-                                  </svg>
-                                  <span className="ml-1 text-gray-300">
-                                    {formattedWallet}:{" "}
-                                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-purple-400">
-                                      {sum.toFixed(2)}
-                                    </span>{" "}
-                                    SOL
-                                  </span>
-                                </div>
+                          return (
+                            <motion.div
+                              key={index}
+                              variants={{
+                                hidden: { opacity: 0, x: -20 },
+                                visible: { opacity: 1, x: 0 }
+                              }}
+                              className="text-xs whitespace-nowrap font-mono tracking-tight transition-colors duration-200 hover:bg-gray-800/50 hover:rounded-sm group"
+                            >
+                              <div className="flex items-center">
+                                <motion.svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="10"
+                                  height="10"
+                                  fill="#6B7280"
+                                  className="bi bi-chevron-right transition-colors duration-200 group-hover:fill-purple-400"
+                                  viewBox="0 0 16 16"
+                                  whileHover={{ scale: 1.2 }}
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"
+                                  />
+                                </motion.svg>
+                                <motion.span 
+                                  className="ml-1 text-gray-300"
+                                  whileHover={{ x: 5 }}
+                                  transition={{ type: "spring", stiffness: 300 }}
+                                >
+                                  {formattedWallet}:{" "}
+                                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-purple-400">
+                                    {sum.toFixed(2)}
+                                  </span>{" "}
+                                  SOL
+                                </motion.span>
                               </div>
-                            );
-                          }
-                        );
-                      })()}
-                  </div>
-                </HoverCardContent>
-              </HoverCard>
+                            </motion.div>
+                          );
+                        }
+                      );
+                    })()}
+                </motion.div>
+              </AnimatedHoverCard>
 
               <div className="flex gap-1">
                 {displayData?.socialLinks.telegram && (
