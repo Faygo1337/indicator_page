@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
+import { X } from "lucide-react";
 import Logo from "../public/logo.jpg";
 import BurgerMenu from "../public/burgerMenu.svg";
 import { Input } from "@/components/ui/input";
@@ -225,9 +226,9 @@ export function Header({
       <Dialog open={pageDialogOpen} onOpenChange={setPageDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-lg font-semibold">Реферальная программа</DialogTitle>
+            <DialogTitle className="text-lg font-semibold">Referral system</DialogTitle>
             <DialogDescription className="text-sm text-gray-400">
-              Поделитесь своей реферальной ссылкой с друзьями и получайте бонусы
+            Share your referral link with your friends and get bonuses!
             </DialogDescription>
           </DialogHeader>
           
@@ -236,7 +237,7 @@ export function Header({
             <div className="bg-purple-900/20 border border-purple-700/30 rounded-lg p-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <div className="text-sm text-gray-400">Рефералов привлечено</div>
+                  <div className="text-sm text-gray-400">Referrals attracted:</div>
                   <div className="text-xl font-semibold text-purple-300">
                     {isLoading ? (
                       <div className="h-7 w-16 animate-pulse bg-purple-800/30 rounded" />
@@ -246,7 +247,7 @@ export function Header({
                   </div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-400">Заработано</div>
+                  <div className="text-sm text-gray-400">Earned:</div>
                   <div className="text-xl font-semibold text-green-400">
                     {isLoading ? (
                       <div className="h-7 w-20 animate-pulse bg-purple-800/30 rounded" />
@@ -261,7 +262,7 @@ export function Header({
             {/* Реферальная ссылка */}
             <div className="grid w-full items-center gap-1.5">
               <label htmlFor="referral-link" className="text-sm text-gray-400">
-                Ваша реферальная ссылка
+              Your referral link:
               </label>
               <div className="flex w-full items-center space-x-2">
                 <div className="relative flex-1">
@@ -282,18 +283,18 @@ export function Header({
                         : "text-purple-400 hover:text-purple-300 hover:bg-purple-900/30"
                     )}
                   >
-                    {isCopied ? "Скопировано!" : "Копировать"}
+                    {isCopied ? "Copied!" : "Copy"}
                   </Button>
                 </div>
               </div>
 
               {/* Инструкция */}
               <div className="mt-4 space-y-2">
-                <h4 className="font-medium text-sm text-gray-300">Как это работает:</h4>
+                <h4 className="font-medium text-sm text-gray-300">How it works:</h4>
                 <ul className="text-sm text-gray-400 space-y-1 list-disc list-inside">
-                  <li>Поделитесь своей реферальной ссылкой с друзьями</li>
-                  <li>Когда они подключат кошелек через вашу ссылку, вы будете зарегистрированы как реферер</li>
-                  <li>За каждую успешную активацию подписки по вашей ссылке вы получаете бонус</li>
+                  <li>Share your referral link with your friends</li>
+                  <li>When they connect their wallet through your link, you will be registered as a referrer</li>
+                  <li>You will receive a bonus for successfully activating a subscription through your link</li>
                 </ul>
               </div>
             </div>

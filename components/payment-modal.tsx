@@ -62,6 +62,7 @@ export function PaymentModal({
   const [transactionDetails, setTransactionDetails] = useState<any>(null);
   const [isCopied, setIsCopied] = useState(false);
   const { provider: wallet, connect } = usePhantomWallet();
+  const [amountSOL, setAmountSOL] =  useState<number>(0); // Состояние для хранения суммы в SOL
 
   // Функция для открытия транзакции в Solscan
   const openInSolscan = useCallback((signature: string) => {
@@ -82,7 +83,6 @@ export function PaymentModal({
       setTransactionDetails(null);
 
       const connection = new Connection('https://api.devnet.solana.com');
-      const amountSOL = 0.1;
 
       console.log('Инициализация отправки транзакции...');
       const signature = await sendPaymentTransaction(
@@ -193,6 +193,43 @@ export function PaymentModal({
     setTimeout(() => setIsCopied(false), 2000);
   };
 
+  // Получаем актуальную цену при открытии модального окна
+  useEffect(() => {
+    const fetchPrice = async () => {
+      try {
+        const token = localStorage.getItem('whales_trace_token');
+        const response = await fetch('https://whales.trace.foundation/api/price', {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch price');
+        }
+        
+        const data = await response.json();
+        if (!data.price) {
+          throw new Error('Invalid price format');
+        }
+        
+        const amount = parseFloat(data.price);
+        if (isNaN(amount)) {
+          throw new Error('Invalid price value');
+        }
+        
+        setAmountSOL(amount);
+      } catch (error) {
+        console.error('Error fetching subscription price:', error);
+        setError('Failed to get current price');
+      }
+    };
+
+    if (open) {
+      fetchPrice();
+    }
+  }, [open]);
+
   return (
     <Dialog open={open}>
       <DialogContent 
@@ -203,7 +240,7 @@ export function PaymentModal({
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">Please topup wallet</DialogTitle>
           <DialogDescription className="text-sm text-gray-400">
-            Send 0.1 SOL to activate your subscription
+            Send {amountSOL} SOL to activate your subscription
           </DialogDescription>
         </DialogHeader>
 
@@ -258,7 +295,7 @@ export function PaymentModal({
                 </div>
               ) : (
                 <div className="flex items-center justify-center gap-2">
-                  <span>Pay 0.1 SOL</span>
+                  <span>Pay {amountSOL} SOL</span>
                 </div>
               )}
             </Button>
