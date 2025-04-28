@@ -86,13 +86,35 @@ const config = {
             opacity: "0",
             transform: "translateY(5px)"
           }
+        },
+        "dropdown-in": {
+          "0%": {
+            opacity: "0",
+            transform: "scale(0.95) translateY(-2px)"
+          },
+          "100%": {
+            opacity: "1",
+            transform: "scale(1) translateY(0)"
+          }
+        },
+        "dropdown-out": {
+          "0%": {
+            opacity: "1",
+            transform: "scale(1) translateY(0)"
+          },
+          "100%": {
+            opacity: "0",
+            transform: "scale(0.95) translateY(-2px)"
+          }
         }
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "hover-card-show": "hover-card-show 0.3s ease-out",
-        "hover-card-hide": "hover-card-hide 0.3s ease-out"
+        "hover-card-hide": "hover-card-hide 0.3s ease-out",
+        "dropdown-in": "dropdown-in 0.2s ease-out",
+        "dropdown-out": "dropdown-out 0.15s ease-in"
       },
     },
   },

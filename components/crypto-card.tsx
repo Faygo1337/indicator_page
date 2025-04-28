@@ -96,7 +96,8 @@ export function CryptoCard({
   const [isUpdating, setIsUpdating] = useState(false);
   const [marketCapClass, setMarketCapClass] = useState("");
   const [priceDirection, setPriceDirection] = useState<"increase" | "decrease" | "" >("");
- 
+  const [showTooltip, setShowTooltip] = useState(false);
+
   // Для отслеживания изменений для анимации
   const lastMarketCapRef = useRef<string | undefined>(undefined);
   const renderCountRef = useRef(0);
@@ -628,27 +629,41 @@ export function CryptoCard({
                   : ""}
               </div>
 
-              <TooltipProvider delayDuration={0} skipDelayDuration={100}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={copyToClipboard}
-                      className="h-7 w-7"
-                    >
-                      {copied ? (
-                        <Check className="h-3 w-3" />
-                      ) : (
-                        <Copy className="h-3 w-3" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{copied ? "Copied!" : "Copy contract address"}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <div className="relative">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={copyToClipboard}
+                  onMouseEnter={() => setShowTooltip(true)}
+                  onMouseLeave={() => setShowTooltip(false)}
+                  className="relative h-7 w-7 group"
+                >
+                  <div className="relative w-3 h-3">
+                    <Copy className={cn(
+                      "absolute -top-[1px] -left-[1px] w-3 h-3 transition-all duration-300",
+                      copied ? "opacity-0 transform scale-90" : "opacity-100 scale-100"
+                    )} />
+                    <Check className={cn(
+                      "absolute -top-[1px] -left-[1px] w-3 h-3 text-green-500 transition-all duration-300",
+                      copied ? "opacity-100 scale-100" : "opacity-0 transform scale-90"
+                    )} />
+                  </div>
+                </Button>
+                {showTooltip && (
+                  <div 
+                    className={cn(
+                      "absolute -top-7 left-1/3 transform -translate-x-1/2 px-2 py-1 text-xs rounded-md whitespace-nowrap z-50 transition-all duration-300",
+                      "bg-popover border border-border shadow-md",
+                      copied ? "bg-green-900/90 border-green-700" : "bg-gray-900/90 border-gray-700"
+                    )}
+                  >
+                    <div className="relative">
+                      <p className="text-white">{copied ? "Copied!" : "Copy"}</p>
+                      {/* <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 rotate-45 w-2 h-2 bg-inherit border-r border-b border-border"></div> */}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

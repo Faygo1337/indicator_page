@@ -201,21 +201,30 @@ export function Header({
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="outline"
-                  className="bg-purple-900/20 border-purple-700/50 text-purple-400 hover:bg-purple-900/30 hover:text-purple-300"
+                  className="bg-purple-900/20 border-purple-700/50 text-purple-400 hover:bg-purple-900/30 hover:text-purple-300 transition-all duration-200"
                 >
                   {formatWalletAddress(wallet)}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={onDisconnectWallet}>
-                  Disconnect Wallet
+                <DropdownMenuItem 
+                  variant="destructive"
+                  onClick={onDisconnectWallet}
+                  className="group"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 relative">
+                      <X className="h-4 w-4 absolute transition-all duration-200 group-hover:scale-110" />
+                    </div>
+                    <span>Disconnect Wallet</span>
+                  </div>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
             <Button
               onClick={onConnectWallet}
-              className="bg-purple-700 hover:bg-purple-600 text-white"
+              className="bg-purple-700 hover:bg-purple-600 text-white transition-all duration-200"
             >
               Connect
             </Button>
