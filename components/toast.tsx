@@ -14,7 +14,7 @@ export interface Toast {
 }
 
 interface ToastProps extends Toast {
-  onRemove: (id: string) => void;
+  onRemoveAction: (id: string) => void;
 }
 
 export const Toast: React.FC<ToastProps> = ({
@@ -22,15 +22,15 @@ export const Toast: React.FC<ToastProps> = ({
   title,
   description,
   type,
-  onRemove,
+  onRemoveAction,
 }) => {
   React.useEffect(() => {
     const timer = setTimeout(() => {
-      onRemove(id);
+      onRemoveAction(id);
     }, 5000);
 
     return () => clearTimeout(timer);
-  }, [id, onRemove]);
+  }, [id, onRemoveAction]);
 
   const variants = {
     initial: { opacity: 0, y: 50, scale: 0.3 },
@@ -75,7 +75,7 @@ export const Toast: React.FC<ToastProps> = ({
           )}
         </div>
         <button
-          onClick={() => onRemove(id)}
+          onClick={() => onRemoveAction(id)}
           className="opacity-70 hover:opacity-100 transition-opacity"
         >
           <X className="h-4 w-4" />
@@ -119,7 +119,7 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
       <div className="fixed bottom-0 right-0 z-50 flex max-h-screen w-full flex-col-reverse gap-2 p-4 sm:max-w-[420px]">
         <AnimatePresence mode="sync">
           {toasts.map((toast) => (
-            <Toast key={toast.id} {...toast} onRemove={removeToast} />
+            <Toast key={toast.id} {...toast} onRemoveAction={removeToast} />
           ))}
         </AnimatePresence>
       </div>

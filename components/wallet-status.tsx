@@ -14,15 +14,15 @@ import {
 interface WalletStatusProps {
   wallet: string | null;
   isConnecting: boolean;
-  onConnect: () => Promise<void>;
-  onDisconnect: () => void;
+  onConnectAction: () => Promise<void>;
+  onDisconnectAction: () => void;
 }
 
 export function WalletStatus({
   wallet,
   isConnecting,
-  onConnect,
-  onDisconnect,
+  onConnectAction,
+  onDisconnectAction,
 }: WalletStatusProps) {
   // Состояние для анимации подключения и отслеживания ошибок
   const [isPending, setIsPending] = useState(false);
@@ -45,7 +45,7 @@ export function WalletStatus({
       setHasError(false);
       setErrorMessage(null);
       
-      await onConnect();
+      await onConnectAction();
     } catch (error) {
       console.error("Failed to connect wallet:", error);
       setHasError(true);
@@ -59,7 +59,7 @@ export function WalletStatus({
     } finally {
       setIsPending(false);
     }
-  }, [isPending, onConnect]);
+  }, [isPending, onConnectAction]);
 
   // Если кошелек подключен
   if (wallet) {
@@ -74,7 +74,7 @@ export function WalletStatus({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={onDisconnect}>
+          <DropdownMenuItem onClick={onDisconnectAction}>
             Отключить кошелек
           </DropdownMenuItem>
         </DropdownMenuContent>

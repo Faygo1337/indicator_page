@@ -4,10 +4,10 @@ import PhantomIcon from '@/public/phantom-icon.svg';
 
 interface ConnectWalletModalProps {
   open: boolean;
-  onConnect: () => void;
+  onConnectAction: () => void;
 }
 
-export const ConnectWalletModal: React.FC<ConnectWalletModalProps> = ({ open, onConnect }) => {
+export const ConnectWalletModal: React.FC<ConnectWalletModalProps> = ({ open, onConnectAction }) => {
   if (!open) return null;
 
   return (
@@ -18,7 +18,7 @@ export const ConnectWalletModal: React.FC<ConnectWalletModalProps> = ({ open, on
       <div className="relative bg-background p-6 rounded-lg shadow-lg w-full max-w-lg">
         <h3 className="mb-4 text-lg font-semibold text-white">Connect a wallet on Solana to continue</h3>
         <button
-          onClick={onConnect}
+          onClick={onConnectAction}
           className="w-full flex items-center justify-center px-4 py-2 bg-purple-600  text-white rounded-md"
         >
           <div className="flex items-center gap-2">

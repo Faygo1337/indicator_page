@@ -12,7 +12,7 @@ export function useError() {
   const { addToast } = useContext(ToastContext);
 
   const handleError = (error: unknown, context?: string) => {
-    let message: string;
+    // let message: string;
     let code: ErrorCode;
 
     if (error instanceof AxiosError) {
@@ -62,7 +62,7 @@ export function useError() {
       code = ErrorCodes.UNKNOWN_ERROR;
     }
 
-    message = ErrorMessages[code];
+    const message = ErrorMessages[code];
 
     addToast({
       type: "error",

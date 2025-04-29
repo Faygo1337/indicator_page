@@ -16,21 +16,21 @@ import bloomLogo from "@/public/bloomLogo.jpg";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+// import {
+//   Tooltip,
+//   TooltipContent,
+//   TooltipProvider,
+//   TooltipTrigger,
+// } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { CryptoCard as CryptoCardType } from "@/lib/api/types";
 import { useTrackedData } from "@/lib/hooks/useForceUpdate";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
+// import {
+//   HoverCard,
+//   HoverCardContent,
+//   HoverCardTrigger,
+// } from "@/components/ui/hover-card";
 // import { useLastActivity } from '@/lib/hooks/useLastActivity';
 import { useWebSocket } from "@/lib/context/WebSocketContext";
 import {
@@ -317,7 +317,7 @@ export function CryptoCard({
     // Вычисляем изменение
     const changeRatio = currentValue / previousValue;
     const isUp = changeRatio >= 1;
-    const multiplier = isUp ? changeRatio : 1 / changeRatio;
+    const multiplier = changeRatio
     const diff = Math.abs(1 - changeRatio);
 
     return { isUp, multiplier, diff };
@@ -518,7 +518,7 @@ export function CryptoCard({
         ) : (
           <ArrowDownRight className="h-2 w-2" />
         )}
-        <span>×{(1/multiplier).toFixed(2)}</span>
+        <span>×{multiplier.toFixed(2)}</span>
       </Badge>
     );
   };

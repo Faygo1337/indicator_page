@@ -1,6 +1,4 @@
 'use client';
-;
-
 import {
   VerifyResponse,
   PaymentResponse,
@@ -51,14 +49,14 @@ class ApiGeneralService {
     return ApiGeneralService.instance;
   }
 
-  /**
-   * Верификация кошелька
-   * @param signature подпись сообщения
-   * @param wallet адрес кошелька
-   * @param timestamp временная метка для синхронизации запроса
-   * @param referralCode реферальный код
-   * @returns информация о верификации
-   */
+  // /**
+  //  * Верификация кошелька
+  //  * @param signature подпись сообщения
+  //  * @param wallet адрес кошелька
+  //  * @param timestamp временная метка для синхронизации запроса
+  //  * @param referralCode реферальный код
+  //  * @returns информация о верификации
+  //  */
   async verifyWallet(
     signature: string,
     wallet: string,
@@ -107,12 +105,8 @@ class ApiGeneralService {
     }
   }
 
-  /**
-   * Проверка статуса платежа
-   * @param walletAddress адрес кошелька для проверки
-   * @returns информация о платеже
-   */
-  async checkPayment(walletAddress: string = ""): Promise<PaymentResponse> {
+
+  async checkPayment(): Promise<PaymentResponse> {
     try {
 
       // Реальная реализация запроса к API
@@ -221,7 +215,7 @@ class ApiGeneralService {
         }, 1000);
 
         return;
-      } catch (e) {
+      } catch {
         this.ws = null;
       }
     }
@@ -393,24 +387,24 @@ class ApiGeneralService {
 
 
   private handleClose(event: CloseEvent): void {
-    const codeMap: Record<number, string> = {
-      1000: "Нормальное закрытие",
-      1001: "Перезагрузка/уход",
-      1002: "Ошибка протокола",
-      1003: "Неприемлемые данные",
-      1006: "Аномальное закрытие",
-      1007: "Неверные данные",
-      1008: "Нарушение политики",
-      1009: "Сообщение слишком большое",
-      1010: "Требуется расширение",
-      1011: "Неожиданная ошибка",
-      1012: "Перезагрузка сервиса",
-      1013: "Попробуйте позже",
-      1014: "Ошибка на прокси",
-      1015: "Сбой TLS"
-    };
+    // const codeMap: Record<number, string> = {
+    //   1000: "Нормальное закрытие",
+    //   1001: "Перезагрузка/уход",
+    //   1002: "Ошибка протокола",
+    //   1003: "Неприемлемые данные",
+    //   1006: "Аномальное закрытие",
+    //   1007: "Неверные данные",
+    //   1008: "Нарушение политики",
+    //   1009: "Сообщение слишком большое",
+    //   1010: "Требуется расширение",
+    //   1011: "Неожиданная ошибка",
+    //   1012: "Перезагрузка сервиса",
+    //   1013: "Попробуйте позже",
+    //   1014: "Ошибка на прокси",
+    //   1015: "Сбой TLS"
+    // };
 
-    const codeDescription = codeMap[event.code] || "Неизвестный код";
+    // const codeDescription = codeMap[event.code] || "Неизвестный код";
 
     this.connected = false;
     this.connecting = false;
@@ -489,15 +483,15 @@ class ApiGeneralService {
   /**
    * Уведомление о новом сигнале
    */
-  private notifyNewSignal(data: CryptoCard): void {
-    for (const callback of this.newSignalCallbacks) {
-      try {
-        callback(data);
-      } catch (error) {
-        console.error("Ошибка в обработчике нового сигнала:", error);
-      }
-    }
-  }
+  // private notifyNewSignal(data: CryptoCard): void {
+  //   for (const callback of this.newSignalCallbacks) {
+  //     try {
+  //       callback(data);
+  //     } catch (error) {
+  //       console.error("Ошибка в обработчике нового сигнала:", error);
+  //     }
+  //   }
+  // }
 
   /**
    * Уведомление об обновлении сигнала
@@ -545,100 +539,100 @@ class ApiGeneralService {
   isConnected(): boolean {
     return this.connected;
   }
-  private formatTimestamp(timestamp: number): string {
-    const date = new Date(timestamp * 1000); // предполагаем, что timestamp в секундах
-    return date.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  }
+  // private formatTimestamp(timestamp: number): string {
+  //   const date = new Date(timestamp * 1000); // предполагаем, что timestamp в секундах
+  //   return date.toLocaleDateString(undefined, {
+  //     year: "numeric",
+  //     month: "short",
+  //     day: "numeric",
+  //   });
+  // }
 
-  private previousPrices: Map<string, number> = new Map();
+  // private previousPrices: Map<string, number> = new Map();
 
-  private convertSignalToCard(signal: NewSignalMessage): CryptoCard {
-    let imageUrl = signal.logo || '';
-    if (imageUrl.includes('gmgn.ai/external-res')) {
+  // private convertSignalToCard(signal: NewSignalMessage): CryptoCard {
+  //   let imageUrl = signal.logo || '';
+  //   if (imageUrl.includes('gmgn.ai/external-res')) {
 
-      imageUrl = `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
-    } else if (imageUrl && !imageUrl.startsWith('http')) {
-      imageUrl = `https://${imageUrl}`;
-    }
+  //     imageUrl = `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+  //   } else if (imageUrl && !imageUrl.startsWith('http')) {
+  //     imageUrl = `https://${imageUrl}`;
+  //   }
 
-    const marketCap = signal.market && signal.market.circulatingSupply && signal.market.price
-      ? `$${Math.round(signal.market.circulatingSupply * signal.market.price)}K`
-      : "N/A";
+  //   const marketCap = signal.market && signal.market.circulatingSupply && signal.market.price
+  //     ? `$${Math.round(signal.market.circulatingSupply * signal.market.price)}K`
+  //     : "N/A";
 
-    // Адаптивно получаем возраст токена
-    const tokenAge = signal.tokenCreatedAt ? this.formatTimestamp(signal.tokenCreatedAt) : "N/A";
+  //   // Адаптивно получаем возраст токена
+  //   const tokenAge = signal.tokenCreatedAt ? this.formatTimestamp(signal.tokenCreatedAt) : "N/A";
 
-    // Социальные ссылки
-    const socialLinks: { telegram?: string; twitter?: string; website?: string } = {};
-    if (signal.socials) {
-      if (signal.socials.tg) socialLinks.telegram = signal.socials.tg;
-      if (signal.socials.x) socialLinks.twitter = signal.socials.x;
-      if (signal.socials.web) socialLinks.website = signal.socials.web;
-    }
+  //   // Социальные ссылки
+  //   const socialLinks: { telegram?: string; twitter?: string; website?: string } = {};
+  //   if (signal.socials) {
+  //     if (signal.socials.tg) socialLinks.telegram = signal.socials.tg;
+  //     if (signal.socials.x) socialLinks.twitter = signal.socials.x;
+  //     if (signal.socials.web) socialLinks.website = signal.socials.web;
+  //   }
 
-    // Перевод пустых значений в нормальный формат
-    const top10 = signal.holdings?.top10 !== undefined ? `${Math.round(signal.holdings.top10)}%` : "0%";
-    const devWalletHold = signal.holdings?.devHolds !== undefined ? `${Math.round(signal.holdings.devHolds)}%` : "0%";
-    const first70BuyersHold = signal.holdings?.first70 !== undefined ? `${Math.round(signal.holdings.first70)}%` : "0%";
-    const insiders = signal.holdings?.insidersHolds !== undefined ? `${Math.round(signal.holdings.insidersHolds)}%` : "0%";
+  //   // Перевод пустых значений в нормальный формат
+  //   const top10 = signal.holdings?.top10 !== undefined ? `${Math.round(signal.holdings.top10)}%` : "0%";
+  //   const devWalletHold = signal.holdings?.devHolds !== undefined ? `${Math.round(signal.holdings.devHolds)}%` : "0%";
+  //   const first70BuyersHold = signal.holdings?.first70 !== undefined ? `${Math.round(signal.holdings.first70)}%` : "0%";
+  //   const insiders = signal.holdings?.insidersHolds !== undefined ? `${Math.round(signal.holdings.insidersHolds)}%` : "0%";
 
-    // Преобразуем транзакции в формат китов, только из реальных данных
-    const whales = signal.trades && signal.trades.length > 0
-      ? signal.trades.slice(0, 3).map(trade => ({
-        count: Math.round(trade.amtSol * 10).toString(), // 👈 преобразуем в строку
-        amount: `${Math
-          .round(trade.amtSol * 100) / 100} SOL`
-      }))
-      : [];
+  //   // Преобразуем транзакции в формат китов, только из реальных данных
+  //   const whales = signal.trades && signal.trades.length > 0
+  //     ? signal.trades.slice(0, 3).map(trade => ({
+  //       count: Math.round(trade.amtSol * 10).toString(), // 👈 преобразуем в строку
+  //       amount: `${Math
+  //         .round(trade.amtSol * 100) / 100} SOL`
+  //     }))
+  //     : [];
 
-    let priceChange = "×1.0"; // по умолчанию
-    const tokenId = signal.token;
+  //   let priceChange = "×1.0"; // по умолчанию
+  //   const tokenId = signal.token;
 
-    // Сохраняем текущую цену
-    if (signal.market?.price !== undefined) {
-      const newPrice = signal.market.price;
+  //   // Сохраняем текущую цену
+  //   if (signal.market?.price !== undefined) {
+  //     const newPrice = signal.market.price;
 
-      // Получаем предыдущую цену из кэша (если есть)
-      const prevPrice = this.previousPrices.get(tokenId);
+  //     // Получаем предыдущую цену из кэша (если есть)
+  //     const prevPrice = this.previousPrices.get(tokenId);
 
-      // Вычисляем и сохраняем коэффициент изменения
-      if (prevPrice && prevPrice > 0) {
-        const ratio = newPrice / prevPrice;
-        priceChange = `×${ratio.toFixed(2)}`;
-      }
+  //     // Вычисляем и сохраняем коэффициент изменения
+  //     if (prevPrice && prevPrice > 0) {
+  //       const ratio = newPrice / prevPrice;
+  //       priceChange = `×${ratio.toFixed(2)}`;
+  //     }
 
-      // Обновляем предыдущую цену
-      this.previousPrices.set(tokenId, newPrice);
-    }
+  //     // Обновляем предыдущую цену
+  //     this.previousPrices.set(tokenId, newPrice);
+  //   }
 
-    // Создаем объект карточки с готовыми данными
-    return {
-      id: signal.token,
-      name: signal.name || "Неизвестно",
-      symbol: signal.symbol || "???",
-      image: imageUrl,
-      marketCap,
-      tokenAge,
-      top10,
+  //   // Создаем объект карточки с готовыми данными
+  //   return {
+  //     id: signal.token,
+  //     name: signal.name || "Неизвестно",
+  //     symbol: signal.symbol || "???",
+  //     image: imageUrl,
+  //     marketCap,
+  //     tokenAge,
+  //     top10,
 
-      devWalletHold,
-      first70BuyersHold,
-      insiders,
-      whales, // 👈 ВСТАВИЛИ СЮДА
-      noMint: true,
-      blacklist: false,
-      burnt: "100%",
-      top10Percentage: top10,
-      priceChange,
-      socialLinks,
-    };
+  //     devWalletHold,
+  //     first70BuyersHold,
+  //     insiders,
+  //     whales, // 👈 ВСТАВИЛИ СЮДА
+  //     noMint: true,
+  //     blacklist: false,
+  //     burnt: "100%",
+  //     top10Percentage: top10,
+  //     priceChange,
+  //     socialLinks,
+  //   };
 
 
-  }
+  // }
 
   // Дополнение к api-general.ts
 
@@ -819,6 +813,7 @@ export async function verifyWallet(
   referralId?: string
 ): Promise<VerifyResponse> {
   return apiGeneral.verifyWallet(signature, wallet, timestamp, referralId);
+
 }
 
 export async function checkPayment(): Promise<PaymentResponse> {

@@ -12,6 +12,7 @@ import { ConnectWalletModal } from '@/components/connect-wallet-modal';
 import { verifyWallet } from "@/lib/api/api-general";
 import { ConnectWebSocket } from "@/components/websocket";
 import { useError } from '@/lib/hooks/useError';
+
 // В начале файла добавим константы для ключей localStorage
 const STORAGE_KEYS = {
   WALLET: "whales_trace_wallet",
@@ -22,14 +23,8 @@ const STORAGE_KEYS = {
 
 export default function Home() {
   const { wallet, isConnecting, connect, disconnect } = usePhantomWallet();
-  const referralCode = useReferral(); // Добавляем использование хука реферальной системы
+  const referralCode = useReferral();
   const { handleError } = useError();
-  // контролируем состояние модалки после монтирования, чтобы не было SSR-флика
-  const [isWalletModalOpen, setIsWalletModalOpen] = useState<boolean>(false);
-  useEffect(() => {
-    const hasWallet = localStorage.getItem(STORAGE_KEYS.WALLET);
-    setIsWalletModalOpen(!hasWallet);
-  }, []);
 
   // Инициализируем состояния из localStorage
   const [jwtPayload, setJwtPayload] = useState<JWTPayload | null>(() => {
@@ -92,8 +87,8 @@ export default function Home() {
       if (!result) return;
 
       const { publicKey, signature, timestamp } = result;
-      handleWalletConnection(publicKey, signature, timestamp);
-    } catch (error) {
+      await handleWalletConnection(publicKey, signature, timestamp);
+    } catch {
       handleError("CONNECT_WALLET_FAILED");
     }
   };
@@ -103,41 +98,38 @@ export default function Home() {
     async (publicKey: string, signature: string, timestamp?: number) => {
       try {
         const verifyResponse = await verifyWallet(
-          signature, 
-          publicKey, 
-          timestamp, 
+          signature,
+          publicKey,
+          timestamp,
           referralCode?.toString()
         );
-  
+
         if (!verifyResponse.token) {
           handleError("CONNECT_WALLET_FAILED");
           return;
         }
-  
+
         localStorage.setItem(STORAGE_KEYS.WALLET, publicKey);
         localStorage.setItem(STORAGE_KEYS.TOKEN, verifyResponse.token);
-  
+
         const payload = decodeJWT(verifyResponse.token);
         if (payload) {
           localStorage.setItem(STORAGE_KEYS.JWT_PAYLOAD, JSON.stringify(payload));
           setJwtPayload(payload);
-          // При успешном подключении обновляем JWT в localStorage для Header
           localStorage.setItem('whales_trace_jwt', JSON.stringify(payload));
         } else {
           console.error("Не удалось декодировать JWT токен");
         }
-  
+
         const isSubscriptionValid = await checkAndConnectWebSocket();
-  
+
         if (!isSubscriptionValid) {
           setIsPaymentModalOpen(true);
         }
 
-        // Очищаем реферальный ID после успешного подключения
         localStorage.removeItem('whales_trace_referral_id');
       } catch (error) {
         handleError(error, 'Wallet connection failed');
-        setIsWalletModalOpen(true);
         setIsPaymentModalOpen(false);
       }
     },
@@ -151,22 +143,20 @@ export default function Home() {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': "application/json",
         }
       });
 
       const responseText = await response.text();
-      // console.log('[Payment Check] Сырой ответ от сервера:', responseText);
-      
+
       let data;
       try {
         data = JSON.parse(responseText);
-       
       } catch (e) {
         console.error('Error parsing:', e);
         return false;
       }
-      
+
       if (!response.ok) {
         return false;
       }
@@ -175,11 +165,10 @@ export default function Home() {
         return false;
       }
 
-      // Проверяем наличие нового токена в ответе
       if (data.accessToken) {
         localStorage.setItem(STORAGE_KEYS.TOKEN, data.accessToken);
       }
-      
+
       return data.hasSubscription === true;
     } catch (error) {
       handleError(error, 'Subscription check failed');
@@ -190,14 +179,8 @@ export default function Home() {
   // Добавляем useEffect для отслеживания состояния кошелька и модальных окон
   useEffect(() => {
     if (!wallet) {
-      // Если кошелек не подключен - показываем модалку подключения
-      setIsWalletModalOpen(true);
       setIsPaymentModalOpen(false);
     } else {
-      // Если кошелек подключен
-      setIsWalletModalOpen(false);
-      
-      // Проверяем подписку только при подключенном кошельке
       const checkSubscription = async () => {
         const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
         if (!token) return;
@@ -208,28 +191,25 @@ export default function Home() {
         }
       };
 
-      checkSubscription();
+       checkSubscription();
     }
-  }, [wallet]); // Зависимость от wallet для отслеживания изменений
+  }, [wallet]);
 
   // Обновляем функцию отключения кошелька
   const disconnectWallet = () => {
-    disconnect();
-    
+     disconnect();
+
     // Очищаем localStorage
     localStorage.removeItem(STORAGE_KEYS.WALLET);
     localStorage.removeItem(STORAGE_KEYS.JWT_PAYLOAD);
     localStorage.removeItem(STORAGE_KEYS.SUBSCRIPTION);
     localStorage.removeItem(STORAGE_KEYS.TOKEN);
-    localStorage.removeItem('whales_trace_referral'); // Очищаем реферальный код
+    localStorage.removeItem('whales_trace_referral');
 
     // Сбрасываем состояния
     setJwtPayload(null);
     setHasSubscription(false);
     setIsLoading(true);
-    
-    // При отключении кошелька сразу показываем модалку подключения
-    setIsWalletModalOpen(true);
   };
 
   const handleCheckPayment = async () => {
@@ -239,10 +219,9 @@ export default function Home() {
         console.error("Токен не найден в localStorage");
         return;
       }
-      
-      // Проверяем подписку и подключаемся к WebSocket
+
       const isValid = await checkAndConnectWebSocket();
-      
+
       if (isValid) {
         const decodedPayload = decodeJWT(token);
         if (decodedPayload) {
@@ -257,17 +236,16 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Модальное окно подключения кошелька - показываем всегда когда нет кошелька */}
       <ConnectWalletModal
         open={!wallet}
-        onConnect={connectWallet}
+        onConnectAction={connectWallet}
       />
-      
+
       <Header
         wallet={wallet}
         isConnecting={isConnecting}
-        onConnectWallet={connectWallet}
-        onDisconnectWallet={disconnectWallet}
+        onConnectWalletAction={connectWallet}
+        onDisconnectWalletAction={disconnectWallet}
       />
 
       <main className="container py-8">
@@ -276,23 +254,21 @@ export default function Home() {
             {skeletonCards}
           </div>
         ) : (
-          <ConnectWebSocket 
-            hasSubscription={hasSubscription} 
-            wallet={wallet} 
+          <ConnectWebSocket
+            hasSubscription={hasSubscription}
+            wallet={wallet}
           />
         )}
       </main>
 
-      {/* Модальное окно оплаты - показываем только при подключенном кошельке и отсутствии подписки */}
       {jwtPayload && wallet && (
         <PaymentModal
           open={isPaymentModalOpen && !hasSubscription}
-          onOpenChange={setIsPaymentModalOpen}
+          onOpenChangeAction={setIsPaymentModalOpen}
           walletAddress={jwtPayload.topupWallet}
-          onCheckPayment={handleCheckPayment}
+          onCheckPaymentAction={handleCheckPayment}
         />
       )}
     </div>
   );
 }
-

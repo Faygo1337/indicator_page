@@ -6,14 +6,14 @@ import { X } from "lucide-react";
 
 interface AnimatedDialogProps {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onOpenChangeAction: (open: boolean) => void;
   children: React.ReactNode;
   className?: string;
 }
 
-export function AnimatedDialog({ open, onOpenChange, children, className }: AnimatedDialogProps) {
+export function AnimatedDialog({ open, onOpenChangeAction, children, className }: AnimatedDialogProps) {
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+    <DialogPrimitive.Root open={open} onOpenChange={onOpenChangeAction}>
       <AnimatePresence>
         {open && (
           <>

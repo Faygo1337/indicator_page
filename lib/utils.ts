@@ -249,7 +249,7 @@ export function parseTokenAge(ageString: string): number {
     }
 
     return totalSeconds;
-  } catch (error) {
+  } catch {
     return 0;
   }
 }

@@ -14,7 +14,7 @@ interface AnimatedHoverCardProps {
 }
 
 export function AnimatedHoverCard({ trigger, children, className }: AnimatedHoverCardProps) {
-  const contentRef = useRef<HTMLDivElement>(null);
+  // const contentRef = useRef<HTMLDivElement>(null);
 
   return (
     <HoverCard openDelay={0} closeDelay={100}>

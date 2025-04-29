@@ -8,7 +8,7 @@ interface CarouselApi {
   canScrollNext: boolean
   scrollPrev: () => void
   scrollNext: () => void
-  setApi: (api: any) => void
+  setApi: (api: unknown) => void
 }
 
 const CarouselContext = createContext<CarouselApi>({

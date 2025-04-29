@@ -488,7 +488,7 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
   const processMessage = (message: WebsocketMessage) => {
     const tokenId = message.token;
 
-    if (!tokenId || typeof tokenId !== "string" || tokenId.trim() === "") {
+    if (!tokenId || tokenId.trim() === "") {
       return;
     }
 
@@ -549,12 +549,12 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
          
 
           // Проверяем обновляемые поля
-          const fieldsBeingUpdated = Object.keys(message).filter(
-            (key) =>
-              key !== "token" &&
-              message[key] !== undefined &&
-              message[key] !== null
-          );
+          // const fieldsBeingUpdated = Object.keys(message).filter(
+          //   (key) =>
+          //     key !== "token" &&
+          //     message[key] !== undefined &&
+          //     message[key] !== null
+          // );
 
 
           Object.entries(message).forEach(([key, value]) => {

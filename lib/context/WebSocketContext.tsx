@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, ReactNode, useRef, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, ReactNode, useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useWebSocketData } from '@/lib/hooks/useWebSocketData';
 import { CryptoCard as CryptoCardType } from '@/lib/api/types';
 
@@ -41,15 +41,9 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
   // url = 'wss://whales.trace.foundation/api/stream' 
 }) => {
   // Проверяем, что мы в браузерном окружении
-  if (typeof window === 'undefined') {
-    return <>{children}</>;
-  }
-
-  
   const updateCountRef = useRef(0);
-  
-  const [refreshCounter, setRefreshCounter] = React.useState(0);
-  const forceRefresh = React.useCallback(() => {
+  const [refreshCounter, setRefreshCounter] = useState(0);
+  const forceRefresh = useCallback(() => {
     updateCountRef.current++;
     setRefreshCounter(prev => prev + 1);
   }, []);
@@ -65,8 +59,9 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     updateCard,
     forceRefresh,
   }), [status, cards, error, reconnect, disconnect, updateCard, forceRefresh]);
-  
-  
+
+
+
   const prevCardsCountRef = useRef(cards.length);
   useEffect(() => {
     const currentCount = cards.length;
@@ -74,15 +69,20 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       prevCardsCountRef.current = currentCount;
     }
   }, [cards.length]);
-  
-  useEffect(() => {
-    
-    if (cards.length > 0) {
-      cards.forEach(card => {
-      });
-    }
-  }, [cards, status, refreshCounter]);
-  
+
+
+  // useEffect(() => {
+  //
+  //   if (cards.length > 0) {
+  //     cards.forEach(card => {
+  //     });
+  //   }
+  // }, [cards, status, refreshCounter]);
+
+  if (typeof window === 'undefined') {
+    return <>{children}</>;
+  }
+
   return (
     <WebSocketContext.Provider value={contextValue}>
       {children}

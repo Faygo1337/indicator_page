@@ -9,8 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn, decodeJWT, formatWalletAddress } from "@/lib/utils";
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
@@ -33,14 +31,14 @@ import { motion } from "framer-motion";
 interface HeaderProps {
   wallet: string | null;
   isConnecting: boolean;
-  onConnectWallet: () => Promise<void>;
-  onDisconnectWallet: () => void;
+  onConnectWalletAction: () => Promise<void>;
+  onDisconnectWalletAction: () => void;
 }
 
 export function Header({
   wallet,
-  onConnectWallet,
-  onDisconnectWallet,
+  onConnectWalletAction,
+  onDisconnectWalletAction,
 }: HeaderProps) {
   const [pageDialogOpen, setPageDialogOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -78,7 +76,7 @@ export function Header({
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch referral stats');
+         throw new Error('Failed to fetch referral stats');
       }
 
       const data = await response.json();
@@ -175,7 +173,7 @@ export function Header({
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <DropdownMenuItem onClick={() => wallet ? setPageDialogOpen(true) : onConnectWallet()}>
+                    <DropdownMenuItem onClick={() => wallet ? setPageDialogOpen(true) : onConnectWalletAction()}>
                       Referral
                     </DropdownMenuItem>
                   </TooltipTrigger>
@@ -196,7 +194,7 @@ export function Header({
             </Button>
             <Button 
               variant="ghost" 
-              onClick={() => wallet ? setPageDialogOpen(true) : onConnectWallet()}
+              onClick={() => wallet ? setPageDialogOpen(true) : onConnectWalletAction()}
             >
               Referral
             </Button>
@@ -217,7 +215,7 @@ export function Header({
               <DropdownMenuContent align="end">
                 <DropdownMenuItem 
                   variant="destructive"
-                  onClick={onDisconnectWallet}
+                  onClick={onDisconnectWalletAction}
                   className="group"
                 >
                   <div className="flex items-center gap-2">
@@ -231,7 +229,7 @@ export function Header({
             </DropdownMenu>
           ) : (
             <Button
-              onClick={onConnectWallet}
+              onClick={onConnectWalletAction}
               className="bg-purple-700 hover:bg-purple-600 text-white transition-all duration-200"
             >
               Connect
@@ -240,7 +238,7 @@ export function Header({
         </div>
       </div>
 
-      <AnimatedDialog open={pageDialogOpen} onOpenChange={setPageDialogOpen}>
+      <AnimatedDialog open={pageDialogOpen} onOpenChangeAction={setPageDialogOpen}>
   <div className="sm:max-w-md">
     <DialogHeader>
       <DialogTitle className="text-lg font-semibold">Referral system</DialogTitle>

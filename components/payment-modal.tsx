@@ -1,5 +1,4 @@
 "use client";
-import Image from "next/image";
 import { useEffect, useState, useCallback } from "react";
 import { Connection } from '@solana/web3.js';
 import { Loader2, AlertCircle } from "lucide-react";
@@ -45,16 +44,16 @@ function DialogContent({
 
 interface PaymentModalProps {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onOpenChangeAction: (open: boolean) => void;
   walletAddress: string;
-  onCheckPayment: () => Promise<void>;
+  onCheckPaymentAction: () => Promise<void>;
 }
 
 export function PaymentModal({
   open,
-  onOpenChange,
+  onOpenChangeAction,
   walletAddress,
-  onCheckPayment,
+  onCheckPaymentAction,
 }: PaymentModalProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [status, setStatus] = useState<'idle' | 'sending' | 'checking' | 'confirming'>('idle');
@@ -129,7 +128,7 @@ export function PaymentModal({
 
             const checkPaymentInterval = setInterval(async () => {
               try {
-                await onCheckPayment();
+                await onCheckPaymentAction();
                 const token = localStorage.getItem('whales_trace_token');
                 if (token) {
                   // Проверяем статус подписки напрямую
@@ -147,7 +146,7 @@ export function PaymentModal({
                     isSubscriptionActive = true;
                     clearInterval(checkPaymentInterval);
                     setIsProcessing(false);
-                    onOpenChange(false); // Закрываем модальное окно только после успешной активации
+                    onOpenChangeAction(false); // Закрываем модальное окно только после успешной активации
                     window.location.reload();
                   }
                 }

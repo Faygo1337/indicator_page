@@ -1,10 +1,10 @@
-import { Keypair, PublicKey, Connection, Transaction, SystemProgram, TransactionInstruction } from '@solana/web3.js';
-import { encodeURL, createQR } from '@solana/pay';
-import { createRef } from 'react';
-import BigNumber from 'bignumber.js';
-import * as QRCode from 'qrcode';
+import { PublicKey, Connection, Transaction, SystemProgram, TransactionInstruction } from '@solana/web3.js';
+// import { encodeURL, createQR } from '@solana/pay';
+// import { createRef } from 'react';
+// import BigNumber from 'bignumber.js';
+// import * as QRCode from 'qrcode';
 
-const keypair = Keypair.generate();
+// const keypair = Keypair.generate();
 const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
 
 // Функция для создания и отправки транзакции
