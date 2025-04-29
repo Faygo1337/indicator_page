@@ -4,7 +4,6 @@ import nacl from 'tweetnacl';
 import bs58 from 'bs58';
 import { useError } from '@/lib/hooks/useError';
 
-// Типы для Phantom Wallet
 interface PhantomWindow extends Window {
   phantom?: {
     solana?: {
@@ -21,7 +20,6 @@ interface PhantomWindow extends Window {
   };
 }
 
-// Типы для состояния хука
 interface PhantomWalletState {
   wallet: string | null;
   publicKey: PublicKey | null;
@@ -38,7 +36,6 @@ interface PhantomMobileWalletState extends PhantomWalletState {
   provider: NonNullable<PhantomWindow['phantom']>['solana'] | null;
 }
 
-// Константы для ключей в localStorage
 const STORAGE_KEYS = {
   WALLET: 'whales_trace_wallet',
   KEYPAIR: 'dapp_keypair',
@@ -82,7 +79,6 @@ export function usePhantomWallet(): PhantomMobileWalletState {
       }
     }
 
-    // Открываем страницу Phantom только если мы в браузере
     if (typeof window !== 'undefined') {
       window.open('https://phantom.app/', '_blank');
     }
@@ -96,22 +92,6 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     setState((prev) => ({ ...prev, isMobileDevice: isMobile }));
     return isMobile;
   }, []);
-
-  // const createMobileDeepLink = useCallback(() => {
-  //   const keypair = nacl.box.keyPair();
-
-  //   localStorage.setItem('dapp_keypair', JSON.stringify({
-  //     publicKey: bs58.encode(keypair.publicKey),
-  //     secretKey: bs58.encode(keypair.secretKey)
-  //   }));
-
-  //   return `https://phantom.app/ul/v1/connect?${new URLSearchParams({
-  //     dapp_encryption_public_key: bs58.encode(keypair.publicKey),
-  //     redirect_url: window.location.href,
-  //     app_url: window.location.origin,
-  //     cluster: 'mainnet-beta'
-  //   }).toString()}`;
-  // }, []);
 
   const connect = useCallback(async () => {
     try {
@@ -259,7 +239,7 @@ export function usePhantomWallet(): PhantomMobileWalletState {
         }));
 
         localStorage.setItem(STORAGE_KEYS.WALLET, walletPublicKey);
-        localStorage.removeItem('dapp_keypair'); // Очищаем временные данные
+        localStorage.removeItem('dapp_keypair');
 
         window.history.replaceState({}, '', window.location.pathname);
 
@@ -271,9 +251,8 @@ export function usePhantomWallet(): PhantomMobileWalletState {
       } catch {
         return;
       }
-    } catch (error) {
+    } catch {
       setState(prev => ({ ...prev, isConnecting: false }));
-      throw error;
     }
   }, []);
 
@@ -316,6 +295,6 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     disconnect,
     signMessage,
     checkMobileDevice,
-    provider: getProvider(), // Добавляем provider в возвращаемые значения
+    provider: getProvider(),
   };
 }

@@ -15,16 +15,12 @@ import {
 import { decodeJWT, formatMarketCap } from "@/lib/utils";
 import axios from 'axios';
 
-
-
 interface AuthVerifyResponse {
   success: boolean;
   status: boolean;
   token: string;
   message?: string;
 }
-
-
 
 class ApiGeneralService {
   private static instance: ApiGeneralService;
@@ -35,7 +31,6 @@ class ApiGeneralService {
   private reconnectTimeout = 1000;
   private connected = false;
   private rawUpdateCallbacks: ((token: string, raw: UpdateSignalMessage) => void)[] = [];
-  // Новые поля для обработки WebSocket
   private newSignalCallbacks: ((data: CryptoCard) => void)[] = [];
   private updateSignalCallbacks: ((token: string, updates: Partial<CryptoCard>) => void)[] = [];
   private errorCallbacks: ((error: unknown) => void)[] = [];
@@ -49,14 +44,6 @@ class ApiGeneralService {
     return ApiGeneralService.instance;
   }
 
-  // /**
-  //  * Верификация кошелька
-  //  * @param signature подпись сообщения
-  //  * @param wallet адрес кошелька
-  //  * @param timestamp временная метка для синхронизации запроса
-  //  * @param referralCode реферальный код
-  //  * @returns информация о верификации
-  //  */
   async verifyWallet(
     signature: string,
     wallet: string,
@@ -65,13 +52,11 @@ class ApiGeneralService {
   ): Promise<VerifyResponse> {
 
     try {
-      // Преобразуем referralId в число
       const refNumber = referralId ? parseInt(referralId, 10) : 0;
 
-      // Подготавливаем данные для запроса
       const dataPost = {
         timestamp: timestamp || Date.now(),
-        ref: refNumber, // Теперь отправляем как число
+        ref: refNumber,
         signature: signature,
         wallet: wallet
       };
@@ -108,21 +93,13 @@ class ApiGeneralService {
 
   async checkPayment(): Promise<PaymentResponse> {
     try {
-
-      // Реальная реализация запроса к API
       const url = API_ENDPOINTS.payment;
-
-
-
       const response = await axios.get(url, {
         headers: {
           'Authorization': `Bearer ${this.accessToken}`,
           'Content-Type': 'application/json'
         },
       });
-
-
-      // Получаем данные из response.data
       const data = response.data;
 
       if (data.success && data.accessToken) {
@@ -136,20 +113,14 @@ class ApiGeneralService {
     }
   }
 
-  /**
-   * Подключение к WebSocket для получения данных в реальном времени
-   * @param token JWT токен для аутентификации
-   */
   private connecting = false;
   private connectionEstablished = false;
 
   async connect(token: string): Promise<void> {
-    // Если уже подключены с тем же токеном - не переподключаемся
     if (this.connected && this.accessToken === token && this.connectionEstablished) {
       return;
     }
 
-    // Если уже идет процесс подключения - не запускаем новый
     if (this.connecting) {
       return;
     }
@@ -160,16 +131,13 @@ class ApiGeneralService {
       return;
     }
 
-    // Если есть предыдущее соединение, закрываем его
     this.disconnect();
 
-    // Устанавливаем флаги и токен
     this.accessToken = token;
     this.connecting = true;
     this.connectionEstablished = false;
 
     try {
-      // Задержка перед повторным подключением (разрываем цикл)
       await new Promise(resolve => setTimeout(resolve, 500));
       this.initWebSocket();
     } catch (error) {
@@ -178,36 +146,28 @@ class ApiGeneralService {
     }
   }
 
-  /**
-   * Инициализация WebSocket соединения
-   */
   private connectionTimeoutId: number | null = null;
   private messageReceivedFlag = false;
   private attemptingReconnect = false;
 
   private initWebSocket(): void {
-    // Защита от создания нескольких соединений одновременно
     if (this.attemptingReconnect) {
       return;
     }
 
     this.attemptingReconnect = true;
 
-    // Сначала полностью очистим текущее соединение
     if (this.ws) {
       try {
-        // Убираем все обработчики
         this.ws.onopen = null;
         this.ws.onmessage = null;
         this.ws.onerror = null;
         this.ws.onclose = null;
 
-        // Закрываем соединение если оно открыто или в процессе открытия
         if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
           this.ws.close(1000, "Закрытие перед новым подключением");
         }
 
-        // Ждем немного после закрытия
         setTimeout(() => {
           this.ws = null;
           this.initWebSocketInternal();
@@ -219,20 +179,17 @@ class ApiGeneralService {
       }
     }
 
-    // Основная логика инициализации
     this.initWebSocketInternal();
   }
 
 
   private initWebSocketInternal(): void {
-    // Очистим таймаут если он был
     if (this.connectionTimeoutId) {
       clearTimeout(this.connectionTimeoutId);
       this.connectionTimeoutId = null;
     }
 
     try {
-      // Проверка доступности WebSocket API
       if (typeof WebSocket === 'undefined') {
         this.notifyError(new Error("WebSocket API not supported"));
         this.attemptingReconnect = false;
@@ -242,16 +199,13 @@ class ApiGeneralService {
 
       this.messageReceivedFlag = false;
 
-      // Создаем соединение с указанием протоколов
       this.ws = new WebSocket(WS_ENDPOINT);
 
-      // Устанавливаем обработчики событий
       this.ws.onopen = this.handleOpen.bind(this);
       this.ws.onmessage = this.handleMessage.bind(this);
       this.ws.onerror = this.handleError.bind(this);
       this.ws.onclose = this.handleClose.bind(this);
 
-      // Устанавливаем таймаут на подключение
       this.connectionTimeoutId = window.setTimeout(() => {
         if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
           this.ws.close(4000, "Connection timeout");
@@ -265,32 +219,21 @@ class ApiGeneralService {
     }
   }
 
-  /**
-   * Обработчик открытия соединения
-   */
   private handleOpen(): void {
 
     if (this.connectionTimeoutId) {
       clearTimeout(this.connectionTimeoutId);
       this.connectionTimeoutId = null;
     }
-
     this.connected = true;
     this.connecting = false;
     this.attemptingReconnect = false;
     this.reconnectAttempts = 0;
-
-    // Отправляем авторизацию
     this.sendAuthMessage();
-
-    // Устанавливаем флаг успешного соединения сразу после авторизации
-    // Это предотвратит повторные попытки соединения
     this.connectionEstablished = true;
   }
 
-  /**
-   * Отправка сообщения авторизации
-   */
+
   private sendAuthMessage(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       return;
@@ -301,10 +244,7 @@ class ApiGeneralService {
     }
 
     try {
-      // Используем правильный формат авторизации
       this.ws.send(JSON.stringify({ authToken: this.accessToken }));
-
-      // Установим флаг успешного подключения после отправки
       this.connectionEstablished = true;
     } catch (error) {
       this.notifyError(error);
@@ -315,12 +255,9 @@ class ApiGeneralService {
     this.rawUpdateCallbacks.push(callback);
   }
 
-  /**
-   * Обработчик входящих сообщений
-   */
+
   private handleMessage(event: MessageEvent): void {
     try {
-      // Убеждаемся, что сообщение можно разобрать как JSON
       let message: unknown;
       try {
         message = JSON.parse(event.data);
@@ -329,21 +266,18 @@ class ApiGeneralService {
       }
 
 
-      // Проверяем, является ли сообщение объектом
       if (!message || typeof message !== 'object') {
         return;
       }
 
       const msgObj = message as Record<string, unknown>;
 
-      // Проверяем есть ли у сообщения поле token и type
       if ('type' in msgObj && msgObj.type === 'update' && 'token' in msgObj && typeof msgObj.token === 'string') {
         const token = msgObj.token;
         this.rawUpdateCallbacks.forEach(cb => cb(token, msgObj as unknown as UpdateSignalMessage));
       } else if ('type' in msgObj && msgObj.type === 'new') {
         this.newSignalCallbacks.forEach(cb => cb(msgObj as unknown as CryptoCard));
       }
-      // Проверяем специальный случай - сообщение с token и market, но без type
       else if ('token' in msgObj && typeof msgObj.token === 'string' && 'market' in msgObj) {
         const token = msgObj.token as string;
 
@@ -367,36 +301,13 @@ class ApiGeneralService {
 
 
   private handleError(): void {
-
     this.connectionEstablished = false;
-
-    // Просто передаем ошибку
     this.notifyError(new Error("Error connected to WebSocket"));
-
     this.attemptingReconnect = false;
   }
 
 
   private handleClose(event: CloseEvent): void {
-    // const codeMap: Record<number, string> = {
-    //   1000: "Нормальное закрытие",
-    //   1001: "Перезагрузка/уход",
-    //   1002: "Ошибка протокола",
-    //   1003: "Неприемлемые данные",
-    //   1006: "Аномальное закрытие",
-    //   1007: "Неверные данные",
-    //   1008: "Нарушение политики",
-    //   1009: "Сообщение слишком большое",
-    //   1010: "Требуется расширение",
-    //   1011: "Неожиданная ошибка",
-    //   1012: "Перезагрузка сервиса",
-    //   1013: "Попробуйте позже",
-    //   1014: "Ошибка на прокси",
-    //   1015: "Сбой TLS"
-    // };
-
-    // const codeDescription = codeMap[event.code] || "Неизвестный код";
-
     this.connected = false;
     this.connecting = false;
     this.attemptingReconnect = false;
@@ -410,7 +321,6 @@ class ApiGeneralService {
       return;
     }
 
-    // Всегда пытаемся переподключиться
     this.reconnect();
   }
 
@@ -430,9 +340,6 @@ class ApiGeneralService {
     }, delay);
   }
 
-  /**
-   * Отключение от WebSocket
-   */
   disconnect(): void {
     this.connecting = false;
     this.connectionEstablished = false;
@@ -444,16 +351,13 @@ class ApiGeneralService {
 
     if (this.ws) {
       try {
-        // Удаляем обработчики событий перед закрытием
         this.ws.onopen = null;
         this.ws.onmessage = null;
         this.ws.onerror = null;
         this.ws.onclose = null;
 
-        // Проверяем текущее состояние
         const currentState = this.ws.readyState;
 
-        // Закрываем соединение только если оно не закрыто и не в процессе закрытия
         if (currentState !== WebSocket.CLOSED && currentState !== WebSocket.CLOSING) {
           this.ws.close(1000, "Нормальное закрытие");
         }
@@ -470,22 +374,6 @@ class ApiGeneralService {
     this.messageReceivedFlag = false;
   }
 
-  /**
-   * Уведомление о новом сигнале
-   */
-  // private notifyNewSignal(data: CryptoCard): void {
-  //   for (const callback of this.newSignalCallbacks) {
-  //     try {
-  //       callback(data);
-  //     } catch (error) {
-  //       console.error("Ошибка в обработчике нового сигнала:", error);
-  //     }
-  //   }
-  // }
-
-  /**
-   * Уведомление об обновлении сигнала
-   */
   private notifyUpdateSignal(token: string, updates: Partial<CryptoCard>): void {
     for (const callback of this.updateSignalCallbacks) {
       try {
@@ -496,9 +384,7 @@ class ApiGeneralService {
     }
   }
 
-  /**
-   * Уведомление об ошибке
-   */
+
   private notifyError(error: unknown): void {
     for (const callback of this.errorCallbacks) {
       try {
@@ -509,18 +395,13 @@ class ApiGeneralService {
     }
   }
 
-  /**
-   * Регистрация обработчика новых сигналов
-   */
   onNewSignal(callback: (data: CryptoCard) => void): void {
     this.newSignalCallbacks.push(callback);
   }
 
-
   onUpdateSignal(callback: (token: string, updates: Partial<CryptoCard>) => void): void {
     this.updateSignalCallbacks.push(callback);
   }
-
 
   onError(callback: (error: unknown) => void): void {
     this.errorCallbacks.push(callback);
@@ -529,106 +410,9 @@ class ApiGeneralService {
   isConnected(): boolean {
     return this.connected;
   }
-  // private formatTimestamp(timestamp: number): string {
-  //   const date = new Date(timestamp * 1000); // предполагаем, что timestamp в секундах
-  //   return date.toLocaleDateString(undefined, {
-  //     year: "numeric",
-  //     month: "short",
-  //     day: "numeric",
-  //   });
-  // }
-
-  // private previousPrices: Map<string, number> = new Map();
-
-  // private convertSignalToCard(signal: NewSignalMessage): CryptoCard {
-  //   let imageUrl = signal.logo || '';
-  //   if (imageUrl.includes('gmgn.ai/external-res')) {
-
-  //     imageUrl = `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
-  //   } else if (imageUrl && !imageUrl.startsWith('http')) {
-  //     imageUrl = `https://${imageUrl}`;
-  //   }
-
-  //   const marketCap = signal.market && signal.market.circulatingSupply && signal.market.price
-  //     ? `$${Math.round(signal.market.circulatingSupply * signal.market.price)}K`
-  //     : "N/A";
-
-  //   // Адаптивно получаем возраст токена
-  //   const tokenAge = signal.tokenCreatedAt ? this.formatTimestamp(signal.tokenCreatedAt) : "N/A";
-
-  //   // Социальные ссылки
-  //   const socialLinks: { telegram?: string; twitter?: string; website?: string } = {};
-  //   if (signal.socials) {
-  //     if (signal.socials.tg) socialLinks.telegram = signal.socials.tg;
-  //     if (signal.socials.x) socialLinks.twitter = signal.socials.x;
-  //     if (signal.socials.web) socialLinks.website = signal.socials.web;
-  //   }
-
-  //   // Перевод пустых значений в нормальный формат
-  //   const top10 = signal.holdings?.top10 !== undefined ? `${Math.round(signal.holdings.top10)}%` : "0%";
-  //   const devWalletHold = signal.holdings?.devHolds !== undefined ? `${Math.round(signal.holdings.devHolds)}%` : "0%";
-  //   const first70BuyersHold = signal.holdings?.first70 !== undefined ? `${Math.round(signal.holdings.first70)}%` : "0%";
-  //   const insiders = signal.holdings?.insidersHolds !== undefined ? `${Math.round(signal.holdings.insidersHolds)}%` : "0%";
-
-  //   // Преобразуем транзакции в формат китов, только из реальных данных
-  //   const whales = signal.trades && signal.trades.length > 0
-  //     ? signal.trades.slice(0, 3).map(trade => ({
-  //       count: Math.round(trade.amtSol * 10).toString(), // 👈 преобразуем в строку
-  //       amount: `${Math
-  //         .round(trade.amtSol * 100) / 100} SOL`
-  //     }))
-  //     : [];
-
-  //   let priceChange = "×1.0"; // по умолчанию
-  //   const tokenId = signal.token;
-
-  //   // Сохраняем текущую цену
-  //   if (signal.market?.price !== undefined) {
-  //     const newPrice = signal.market.price;
-
-  //     // Получаем предыдущую цену из кэша (если есть)
-  //     const prevPrice = this.previousPrices.get(tokenId);
-
-  //     // Вычисляем и сохраняем коэффициент изменения
-  //     if (prevPrice && prevPrice > 0) {
-  //       const ratio = newPrice / prevPrice;
-  //       priceChange = `×${ratio.toFixed(2)}`;
-  //     }
-
-  //     // Обновляем предыдущую цену
-  //     this.previousPrices.set(tokenId, newPrice);
-  //   }
-
-  //   // Создаем объект карточки с готовыми данными
-  //   return {
-  //     id: signal.token,
-  //     name: signal.name || "Неизвестно",
-  //     symbol: signal.symbol || "???",
-  //     image: imageUrl,
-  //     marketCap,
-  //     tokenAge,
-  //     top10,
-
-  //     devWalletHold,
-  //     first70BuyersHold,
-  //     insiders,
-  //     whales, // 👈 ВСТАВИЛИ СЮДА
-  //     noMint: true,
-  //     blacklist: false,
-  //     burnt: "100%",
-  //     top10Percentage: top10,
-  //     priceChange,
-  //     socialLinks,
-  //   };
-
-
-  // }
-
-  // Дополнение к api-general.ts
 
   private circulatingSupplyMap: Map<string, number> = new Map();
 
-  // Хранилище предыдущих marketCap (локально, без стейта)
   private previousMarketCaps: Map<string, number> = new Map();
 
   public convertToCardUpdates(update: UpdateSignalMessage): Partial<CryptoCard> {
@@ -637,8 +421,6 @@ class ApiGeneralService {
 
     if (update.market) {
       const price = update.market.price;
-
-      // Получаем и сохраняем circulatingSupply один раз на токен
       const savedSupply = this.circulatingSupplyMap.get(update.token);
 
       if (update.market.circulatingSupply !== undefined && !savedSupply) {
@@ -659,10 +441,7 @@ class ApiGeneralService {
         } else {
           result.priceChange = `×1.00`;
         }
-
-        // Сохраняем новый marketCap
         this.previousMarketCaps.set(update.token, newMarketCap);
-
       }
     }
 
@@ -695,9 +474,6 @@ class ApiGeneralService {
     return this.accessToken;
   }
 
-  /**
-   * Публичный метод для получения информации о состоянии соединения
-   */
   public getConnectionInfo(): {
     connected: boolean;
     connecting: boolean;
@@ -712,11 +488,7 @@ class ApiGeneralService {
     };
   }
 
-  /**
-   * Публичный метод для обработки сообщений WebSocket
-   * @param message - строка сообщения от WebSocket
-   * @returns обработанное сообщение с данными или null при ошибке
-   */
+
   public processWebSocketMessage(message: string): {
     type: 'new' | 'update' | 'unknown';
     data: Record<string, unknown> | null;
@@ -724,7 +496,6 @@ class ApiGeneralService {
     error?: string;
   } {
     try {
-      // Пытаемся разобрать JSON из строки
       let parsedMessage: Record<string, unknown>;
       try {
         parsedMessage = JSON.parse(message);
@@ -736,7 +507,6 @@ class ApiGeneralService {
         };
       }
 
-      // Проверяем, является ли сообщение объектом
       if (!parsedMessage || typeof parsedMessage !== 'object') {
         return {
           type: 'unknown',
@@ -745,7 +515,6 @@ class ApiGeneralService {
         };
       }
 
-      // Проверяем есть ли явное поле type
       if ('type' in parsedMessage) {
         const msgType = parsedMessage.type as string;
 
@@ -781,7 +550,6 @@ class ApiGeneralService {
   }
 
   private handleWebSocketError(error: unknown): void {
-    // Уведомляем всех подписчиков об ошибке
     for (const callback of this.errorCallbacks) {
       callback(error);
     }
@@ -790,11 +558,7 @@ class ApiGeneralService {
 }
 
 export const apiGeneral = ApiGeneralService.getInstance();
-
-
 export const webSocketClient = apiGeneral;
-
-
 export async function verifyWallet(
   signature: string,
   wallet: string,
@@ -802,7 +566,6 @@ export async function verifyWallet(
   referralId?: string
 ): Promise<VerifyResponse> {
   return apiGeneral.verifyWallet(signature, wallet, timestamp, referralId);
-
 }
 
 export async function checkPayment(): Promise<PaymentResponse> {
@@ -829,9 +592,5 @@ export const convertToCardUpdates = (update: UpdateSignalMessage): Partial<Crypt
 
 export const getConnectionInfo = () => apiGeneral.getConnectionInfo();
 
-/**
- * Обработчик WebSocket сообщений, который можно использовать во внешних компонентах
- * @param messageData Данные сообщения от WebSocket
- */
 export const processWebSocketMessage = (messageData: string) =>
   ApiGeneralService.getInstance().processWebSocketMessage(messageData);

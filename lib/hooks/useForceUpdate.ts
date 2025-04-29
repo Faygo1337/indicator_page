@@ -7,12 +7,12 @@ import { generateUpdateId } from '../utils';
  */
 export function useForceUpdate(): [string, () => void] {
   const [updateId, setUpdateId] = useState(generateUpdateId());
-  
+
 
   const forceUpdate = useCallback(() => {
     setUpdateId(generateUpdateId());
   }, []);
-  
+
   return [updateId, forceUpdate];
 }
 
@@ -32,7 +32,7 @@ export function useDebounce<T extends (...args: void[]) => void>(
   useEffect(() => {
     fnRef.current = fn;
   }, [fn]);
-  
+
   useEffect(() => {
     return () => {
       if (timeoutRef.current !== null) {
@@ -40,13 +40,13 @@ export function useDebounce<T extends (...args: void[]) => void>(
       }
     };
   }, []);
-  
+
   return useCallback(
     (...args: Parameters<T>) => {
       if (timeoutRef.current !== null) {
         clearTimeout(timeoutRef.current);
       }
-      
+
       timeoutRef.current = window.setTimeout(() => {
         fnRef.current(...args);
         timeoutRef.current = null;
@@ -56,33 +56,21 @@ export function useDebounce<T extends (...args: void[]) => void>(
   ) as T;
 }
 
-/**
- * Хук для отслеживания изменений в объекте данных
- * @param data - объект данных для отслеживания
- * @returns [trackedData, forceUpdate] - отслеживаемые данные с идентификатором обновления и функция принудительного обновления
- */
 export function useTrackedData<T>(data: T | null): [T & { _updateId: string } | null, () => void] {
   const [trackId, setTrackId] = useState<string>(generateUpdateId());
-  
-  // Храним данные и идентификатор в ref, чтобы избежать лишних обновлений
   const dataRef = useRef<{ data: T | null, trackId: string }>({
     data,
     trackId
   });
-  
-  // Функция принудительного обновления
+
   const forceUpdate = useCallback(() => {
     setTrackId(generateUpdateId());
   }, []);
-  
-  // Если данных нет, возвращаем null
+
   if (!data) {
     return [null, forceUpdate];
   }
-  
   const trackedData = { ...data, _updateId: trackId } as T & { _updateId: string };
-  
   dataRef.current = { data, trackId };
-  
   return [trackedData, forceUpdate];
 } 

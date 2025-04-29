@@ -41,16 +41,16 @@ export const API_ENDPOINTS = {
 
 
 export interface JWTPayload {
-  id: number;           // ID пользователя
+  id: number;
   createdAt: number;
   exp: number;
   iat: number;
   linkedWallet: string;
   subExpAt: number;
   topupWallet: string;
-  referrerId?: number;  // ID реферера, если пользователь был приглашен
-  referralCount: number; // Количество приглашенных рефералов
-  referralEarnings: number; // Заработанные SOL с рефералов
+  referrerId?: number;
+  referralCount: number;
+  referralEarnings: number;
 }
 
 export interface PaymentResponse {
@@ -58,7 +58,7 @@ export interface PaymentResponse {
   expireAt: string;
   hasSubscription: boolean;
   success: boolean;
-  referralBonus?: number;    // Добавляем поле для реферального бонуса
+  referralBonus?: number;
 }
 
 

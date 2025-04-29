@@ -31,14 +31,14 @@ export function AnimatedDialog({ open, onOpenChangeAction, children, className }
                 <DialogPrimitive.Overlay 
                   className="fixed inset-0"
                   style={{
-                    background: 'rgba(0, 0, 0, 0.7)', // Более тёмный фон
+                    background: 'rgba(0, 0, 0, 0.7)',
                   }}
                 />
               </motion.div>
 
               <motion.div
                 initial={{ backdropFilter: "blur(0px)" }}
-                animate={{ backdropFilter: "blur(16px)" }} // Усиленное размытие
+                animate={{ backdropFilter: "blur(16px)" }}
                 exit={{ backdropFilter: "blur(0px)" }}
                 transition={{
                   duration: 0.4,

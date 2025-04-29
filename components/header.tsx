@@ -47,7 +47,6 @@ export function Header({
   const [isLoading, setIsLoading] = useState(false);
   const [referralStats, setReferralStats] = useState({ refCount: 0, refEarnings: 0 });
   const { handleError } = useError();
-  // Получаем JWT из localStorage при монтировании
   const [jwtPayload, setJwtPayload] = useState<JWTPayload | null>(() => {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('whales_trace_token');
@@ -56,10 +55,8 @@ export function Header({
     return null;
   });
 
-  // Добавляем состояние для отслеживания был ли уже сделан запрос
   const [hasLoadedReferrals, setHasLoadedReferrals] = useState(false);
 
-  // Обновляем fetchReferralStats чтобы запрос делался только один раз
   const fetchReferralStats = useCallback(async () => {
     if (!wallet || hasLoadedReferrals) return;
     
@@ -81,7 +78,6 @@ export function Header({
 
       const data = await response.json();
       setReferralStats(data);
-      // Помечаем что данные уже загружены
       setHasLoadedReferrals(true);
     } catch (error) {
       handleError(error, 'Failed to fetch referral stats');
@@ -98,12 +94,10 @@ export function Header({
     handleResize();
     window.addEventListener("resize", handleResize);
 
-    // Формируем реферальную ссылку на основе ID из JWT
     if (jwtPayload?.id) {
       setReferralLink(`${window.location.origin}/?ref=${jwtPayload.id}`);
     }
 
-    // Получаем реферальную статистику только при первом открытии диалога
     if (pageDialogOpen && !hasLoadedReferrals) {
       fetchReferralStats();
     }
@@ -113,7 +107,6 @@ export function Header({
     };
   }, [jwtPayload, pageDialogOpen, fetchReferralStats, hasLoadedReferrals]);
 
-  // Обновляем JWT payload при изменении токена
   useEffect(() => {
     const handleStorageChange = () => {
       const token = localStorage.getItem('whales_trace_token');

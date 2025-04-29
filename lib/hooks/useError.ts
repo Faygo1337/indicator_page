@@ -12,18 +12,15 @@ export function useError() {
   const { addToast } = useContext(ToastContext);
 
   const handleError = (error: unknown, context?: string) => {
-    // let message: string;
     let code: ErrorCode;
 
     if (error instanceof AxiosError) {
       const data = error.response?.data as ApiErrorResponse;
 
-      // Handle specific error status codes
       switch (error.response?.status) {
         case 401:
           if (data?.error?.includes('token')) {
             code = 'AUTH_TOKEN_INVALID';
-            // Clear auth state on token errors
             localStorage.removeItem('whales_trace_token');
             localStorage.removeItem('whales_trace_jwt');
           } else {
@@ -69,9 +66,6 @@ export function useError() {
       title: context || 'Error',
       description: message
     });
-
-    // Log error for debugging
-
     return code;
   };
 

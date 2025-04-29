@@ -16,9 +16,7 @@ import {
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-// import { Label } from "@/components/ui/label"
 
-// Создаем кастомный DialogContent без кнопки закрытия
 function DialogContent({
   className,
   children,
@@ -61,9 +59,8 @@ export function PaymentModal({
   const [transactionDetails, setTransactionDetails] = useState<any>(null);
   const [isCopied, setIsCopied] = useState(false);
   const { provider: wallet, connect } = usePhantomWallet();
-  const [amountSOL, setAmountSOL] =  useState<number>(0); // Состояние для хранения суммы в SOL
+  const [amountSOL, setAmountSOL] =  useState<number>(0); 
 
-  // Функция для открытия транзакции в Solscan
   const openInSolscan = useCallback((signature: string) => {
     const url = `https://solscan.io/tx/${signature}?cluster=devnet`;
     window.open(url, '_blank');
@@ -91,7 +88,6 @@ export function PaymentModal({
         amountSOL
       );
 
-      // Получаем и показываем детали транзакции
       try {
         const details = await getTransactionDetails(connection, signature);
         setTransactionDetails(details);
@@ -102,7 +98,6 @@ export function PaymentModal({
 
       setStatus('checking');
 
-      // Проверяем статус транзакции
       let isConfirmed = false;
       const checkTxInterval = setInterval(async () => {
         try {
@@ -111,7 +106,6 @@ export function PaymentModal({
           if (isConfirmed) {
             clearInterval(checkTxInterval);
             
-            // Обновляем детали транзакции после подтверждения
             try {
               const updatedDetails = await getTransactionDetails(connection, signature);
               setTransactionDetails(updatedDetails);
@@ -121,9 +115,8 @@ export function PaymentModal({
             
             setStatus('confirming');
 
-            // Настройки для повторных попыток
             let retryCount = 0;
-            const maxRetries = 60; // 5 минут общего времени проверки (60 * 5 секунд)
+            const maxRetries = 60; 
             let isSubscriptionActive = false;
 
             const checkPaymentInterval = setInterval(async () => {
@@ -131,7 +124,6 @@ export function PaymentModal({
                 await onCheckPaymentAction();
                 const token = localStorage.getItem('whales_trace_token');
                 if (token) {
-                  // Проверяем статус подписки напрямую
                   const response = await fetch('https://whales.trace.foundation/api/payment', {
                     method: 'GET',
                     headers: {
@@ -142,11 +134,10 @@ export function PaymentModal({
                   const data = await response.json();
                   
                   if (data.hasSubscription === true) {
-                    // Подписка активирована успешно
                     isSubscriptionActive = true;
                     clearInterval(checkPaymentInterval);
                     setIsProcessing(false);
-                    onOpenChangeAction(false); // Закрываем модальное окно только после успешной активации
+                    onOpenChangeAction(false); 
                     window.location.reload();
                   }
                 }
@@ -166,7 +157,7 @@ export function PaymentModal({
                     setError('Subscription confirmation timeout. Please contact support.');
                 }
               }
-            }, 5000); // Проверка каждые 5 секунд
+            }, 5000); 
           }
         } catch  {
           return;
@@ -185,7 +176,6 @@ export function PaymentModal({
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  // Получаем актуальную цену при открытии модального окна
   useEffect(() => {
     const fetchPrice = async () => {
       try {

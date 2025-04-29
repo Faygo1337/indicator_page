@@ -16,22 +16,12 @@ import bloomLogo from "@/public/bloomLogo.jpg";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-// import {
-//   Tooltip,
-//   TooltipContent,
-//   TooltipProvider,
-//   TooltipTrigger,
-// } from "@/components/ui/tooltip";
+
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { CryptoCard as CryptoCardType } from "@/lib/api/types";
 import { useTrackedData } from "@/lib/hooks/useForceUpdate";
-// import {
-//   HoverCard,
-//   HoverCardContent,
-//   HoverCardTrigger,
-// } from "@/components/ui/hover-card";
-// import { useLastActivity } from '@/lib/hooks/useLastActivity';
+
 import { useWebSocket } from "@/lib/context/WebSocketContext";
 import {
   formatNumber,
@@ -47,7 +37,6 @@ import DevWalletIcon from "@/public/devwallet-icon.svg";
 import Top10Icon from "@/public/top10-icon.svg";
 import { motion } from "framer-motion";
 import { AnimatedHoverCard } from "./ui/animated-hover-card";
-// Расширенный тип для поддержки метаданных обновления
 interface ExtendedCryptoCard extends CryptoCardType {
   _receivedAt?: number;
   _lastUpdated?: number;
@@ -60,23 +49,19 @@ interface CryptoCardProps {
   animate?: boolean;
 }
 
-const ANIMATION_DURATION = 1000; // 1 секунда для анимации
+const ANIMATION_DURATION = 1000; 
 
-// Функция для преобразования строки market cap в число с учетом суффиксов
 const convertMarketCapToValue = (marketCap: string): number => {
   if (!marketCap || marketCap === 'N/A') return 0;
   
-  // Очищаем строку от всего кроме чисел, точки и суффикса
   const cleanStr = marketCap.trim();
   const numStr = cleanStr.replace(/[^\d.KMBkmb]/g, '');
   
-  // Извлекаем числовое значение и суффикс
   const value = parseFloat(numStr);
   const suffix = cleanStr.slice(-1).toUpperCase();
 
   if (isNaN(value)) return 0;
 
-  // Применяем множитель в зависимости от суффикса
   const multipliers: { [key: string]: number } = {
     'K': 1_000,
     'M': 1_000_000,
@@ -100,28 +85,20 @@ export function CryptoCard({
   const [priceDirection, setPriceDirection] = useState<"increase" | "decrease" | "" >("");
   const [showTooltip, setShowTooltip] = useState(false);
 
-  // Для отслеживания изменений для анимации
   const lastMarketCapRef = useRef<string | undefined>(undefined);
   const renderCountRef = useRef(0);
 
-  // Используем хук для отслеживания изменений данных с правильным типом
   const [trackedData, forceUpdateImmediate] =
     useTrackedData<ExtendedCryptoCard>(data || null);
 
-  // Получаем статус соединения и данные из WebSocket контекста
   const wsContextData = useWebSocket();
   const isConnected = wsContextData.status === "connected";
 
-  // Находим данные из контекста, соответствующие карточке
-  // const wsCardData = useMemo(() => {
-  //   if (!data?.id) return null;
-  //   return wsContextData.cards.find(card => card.id === data.id);
-  // }, [wsContextData.cards, data?.id]);
+ 
   const wsCardData = wsContextData.cards.find((card) => card.id === data?.id);
   
   const displayData = wsCardData ?? data;
 
-  // Формируем корректный URL для X (twitter)
   const twitterRaw = displayData?.socialLinks.twitter ?? '';
   const twitterHref = twitterRaw
     ? twitterRaw.startsWith('http')
@@ -129,29 +106,21 @@ export function CryptoCard({
       : `https://x.com/${twitterRaw}`
     : '';
 
-  // Отслеживаем предыдущие значения для анимации
   useEffect(() => {
     if (trackedData && (!prevData || prevData.id !== trackedData.id)) {
       setPrevData({ ...trackedData });
     }
   }, [trackedData, prevData]);
 
-  // Для хранения предыдущего значения marketCap
-  // const [prevMarketCap, setPrevMarketCap] = useState<string | undefined>(undefined);
-
-  // Добавляем пустой useEffect для renderCountRef
   useEffect(() => {
     renderCountRef.current++;
   }, []);
 
-  // Добавляем восстановленную функциональность эффекта обработки изменений marketCap
-  // Отслеживаем изменения marketCap для вычисления соотношения
   useEffect(() => {
     if (
       wsCardData?.marketCap &&
       wsCardData.marketCap !== trackedData?.marketCap
     ) {
-      // Проверяем изменение значения для анимации
       const prevValue = extractNumericValue(trackedData?.marketCap || "0");
       const currValue = extractNumericValue(wsCardData.marketCap);
 
@@ -163,28 +132,20 @@ export function CryptoCard({
         setMarketCapClass("market-cap-decrease market-cap-realtime");
       }
 
-      // Сбрасываем класс анимации через некоторое время
       setTimeout(() => {
         setMarketCapClass("market-cap-realtime");
       }, 800);
 
-      // Рассчитываем коэффициент изменения
-      // const ratio = calculatePriceRatio(wsCardData.marketCap, trackedData?.marketCap);
-      // const priceChangeText = `×${ratio.toFixed(2)}`;
-
-      // Принудительно обновляем карточку
       forceUpdateImmediate();
     }
   }, [wsCardData?.marketCap, trackedData?.marketCap, forceUpdateImmediate]);
 
-  // Удаляем отладочную информацию из эффекта обновлений в реальном времени
   useEffect(() => {
     if (
       data?._updateId &&
       data._updateId.includes("update-marketcap") &&
       lastMarketCapRef.current !== data.marketCap
     ) {
-      // Для обновлений Market Cap из интервала анимации
       const prevValue = extractNumericValue(lastMarketCapRef.current || "0");
       const currValue = extractNumericValue(data.marketCap || "0");
 
@@ -200,7 +161,6 @@ export function CryptoCard({
     }
   }, [data?._updateId, data?.marketCap]);
 
-  // Обновляем данные, если пришли новые с WebSocket
   useEffect(() => {
     if (!wsCardData || !trackedData) return;
 
@@ -252,21 +212,11 @@ export function CryptoCard({
     }
   }, [wsCardData, trackedData]);
 
-  // useEffect(() => {
-  //   console.log("[CryptoCard] displayData:", displayData);
-  // }, [displayData]);
 
-  // const debouncedSetAnimate = useDebounce((fields: Record<string, boolean>) => {
-  //   setAnimateFields(fields);
-  // }, 50);
-
-  // const forceUpdate = useDebounce(forceUpdateImmediate, 100);
 
   const lastUpdatedRef = useRef<number | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
-  // const [lastActivity] = useLastActivity();
 
-  // const logUpdateRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (
@@ -300,13 +250,11 @@ export function CryptoCard({
     setImageError(true);
   };
 
-  // Рассчитываем коэффициент изменения marketCap
   const getPriceChangeInfo = useMemo(() => {
     if (!data?.marketCap || !prevData?.marketCap) {
       return { isUp: true, multiplier: 1, diff: 0 };
     }
 
-    // Преобразуем строковые значения в числа с учетом суффиксов
     const currentValue = convertMarketCapToValue(data.marketCap);
     const previousValue = convertMarketCapToValue(prevData.marketCap);
 
@@ -314,7 +262,6 @@ export function CryptoCard({
       return { isUp: true, multiplier: 1, diff: 0 };
     }
 
-    // Вычисляем изменение
     const changeRatio = currentValue / previousValue;
     const isUp = changeRatio >= 1;
     const multiplier = changeRatio
@@ -345,10 +292,8 @@ export function CryptoCard({
         ? currentValue
         : formatNumber(currentValue, { isPercent });
 
-    // Для marketCap добавляем более яркую и заметную анимацию
     if (field === "marketCap") {
       const animClass = marketCapClass ? marketCapClass : "market-cap-realtime";
-      // Добавляем символ изменения
       const changeIcon =
         priceDirection === "increase" ? (
           <span className="text-green-400 text-xs">↑</span>
@@ -366,7 +311,6 @@ export function CryptoCard({
       );
     }
 
-    // Для остальных полей
     if (animateFields[field] && prevData) {
       const getFieldValue = (
         obj: Partial<CryptoCardType>,
@@ -375,7 +319,6 @@ export function CryptoCard({
         return (obj[field] as string) ?? "0";
       };
 
-      // И использовать:
       const prevValueRaw = getFieldValue(
         prevData ?? {},
         field as keyof CryptoCardType
@@ -430,22 +373,17 @@ export function CryptoCard({
     );
   };
 
-  // Используем cardData вместо data для отображения
 
   useEffect(() => {
     if (data?._updateId) {
-      // Сохраняем предыдущие данные для сравнения
       setPrevData((prev) => (prev ? { ...prev } : null));
 
-      // Анализируем, какие поля изменились для анимации
       const fieldsToAnimate: Record<string, boolean> = {};
 
       if (prevData) {
-        // Проверяем изменение marketCap
         if (data.marketCap !== prevData.marketCap) {
           fieldsToAnimate.marketCap = true;
 
-          // Определяем направление изменения для анимации
           const prevValue = extractNumericValue(prevData.marketCap || "0");
           const currValue = extractNumericValue(data.marketCap || "0");
 
@@ -457,13 +395,11 @@ export function CryptoCard({
             setMarketCapClass("market-cap-decrease");
           }
 
-          // Сбрасываем класс анимации через некоторое время
           setTimeout(() => {
             setMarketCapClass("");
           }, 800);
         }
 
-        // Проверяем другие поля
         if (data.top10 !== prevData.top10) fieldsToAnimate.top10 = true;
         if (data.devWalletHold !== prevData.devWalletHold)
           fieldsToAnimate.devWalletHold = true;
@@ -473,11 +409,9 @@ export function CryptoCard({
           fieldsToAnimate.insiders = true;
       }
 
-      // Устанавливаем анимации для измененных полей
       if (Object.keys(fieldsToAnimate).length > 0) {
         setAnimateFields(fieldsToAnimate);
 
-        // Сбрасываем анимацию через определенное время
         setTimeout(() => {
           setAnimateFields({});
         }, 1500);
@@ -528,7 +462,6 @@ export function CryptoCard({
       <Card className="overflow-hidden border-gray-800">
         <CardContent className="p-0">
           <div className="p-4 space-y-3">
-            {/* Header skeleton */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Skeleton className="h-12 w-12 rounded-md" />
@@ -540,7 +473,6 @@ export function CryptoCard({
               <Skeleton className="h-7 w-7 rounded-full" />
             </div>
 
-            {/* Overview skeleton */}
             <div className="space-y-1 mt-3">
               <Skeleton className="h-3 w-[80px]" />
               <div className="grid grid-cols-2 gap-1">
@@ -553,7 +485,6 @@ export function CryptoCard({
               </div>
             </div>
 
-            {/* Actions row skeleton */}
             <div className="flex items-center justify-between mt-3">
               <Skeleton className="h-8 w-[80px]" />
               <div className="flex gap-1">
@@ -581,7 +512,6 @@ export function CryptoCard({
     >
       <CardContent style={{ padding: "0.1rem .1rem 0" }}>
         <div className="p-4">
-          {/* Header */}
           <div
             className="flex items-center"
             style={{ justifyContent: "space-between", marginBottom: "1rem" }}
@@ -688,7 +618,6 @@ export function CryptoCard({
                   >
                     <div className="relative">
                       <p className="text-white">{copied ? "Copied!" : "Copy"}</p>
-                      {/* <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 rotate-45 w-2 h-2 bg-inherit border-r border-b border-border"></div> */}
                     </div>
                   </div>
                 )}
@@ -696,7 +625,6 @@ export function CryptoCard({
             </div>
           </div>
 
-          {/* Overview - в виде таблицы */}
           <div style={{ marginTop: ".6rem" }}>
             <div className="grid grid-cols-3 gap-x-2 gap-y-2 text-xs">
               <div
@@ -784,7 +712,6 @@ export function CryptoCard({
             </div>
           </div>
 
-          {/* Actions row - combined View whales, social media, and performance */}
           <div
             className="flex items-center justify-between"
             style={{ marginTop: "1.6rem" }}

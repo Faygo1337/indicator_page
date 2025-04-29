@@ -24,19 +24,16 @@ export function WalletStatus({
   onConnectAction,
   onDisconnectAction,
 }: WalletStatusProps) {
-  // Состояние для анимации подключения и отслеживания ошибок
   const [isPending, setIsPending] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Сбрасываем состояние анимации при изменении статуса подключения
   useEffect(() => {
     if (!isConnecting && isPending) {
       setIsPending(false);
     }
   }, [isConnecting, isPending]);
 
-  // Обработчик нажатия на кнопку подключения
   const handleConnect = useCallback(async () => {
     if (isPending) return;
     
@@ -50,7 +47,6 @@ export function WalletStatus({
       setHasError(true);
       setErrorMessage(error instanceof Error ? error.message : "failed to connect");
       
-      // Автоматически сбрасываем ошибку через 5 секунд
       setTimeout(() => {
         setHasError(false);
         setErrorMessage(null);
@@ -60,7 +56,6 @@ export function WalletStatus({
     }
   }, [isPending, onConnectAction]);
 
-  // Если кошелек подключен
   if (wallet) {
     return (
       <DropdownMenu>
@@ -74,14 +69,13 @@ export function WalletStatus({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={onDisconnectAction}>
-            Отключить кошелек
+            Disconnect Wallet
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     );
   }
 
-  // Если произошла ошибка
   if (hasError) {
     return (
       <Button
@@ -91,12 +85,11 @@ export function WalletStatus({
         title={errorMessage || "Error connecting wallet"}
       >
         <AlertCircle className="h-4 w-4" />
-        <span>Повторить подключение</span>
+        <span>Retry Connection</span>
       </Button>
     );
   }
 
-  // Обычное состояние - кнопка подключения
   return (
     <Button
       onClick={handleConnect}
@@ -106,10 +99,10 @@ export function WalletStatus({
       {isPending ? (
         <>
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Подключение...
+          Connecting...
         </>
       ) : (
-        "Подключить кошелек"
+        "Connect Wallet"
       )}
     </Button>
   );

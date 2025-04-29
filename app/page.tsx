@@ -13,7 +13,6 @@ import { verifyWallet } from "@/lib/api/api-general";
 import { ConnectWebSocket } from "@/components/websocket";
 import { useError } from '@/lib/hooks/useError';
 
-// В начале файла добавим константы для ключей localStorage
 const STORAGE_KEYS = {
   WALLET: "whales_trace_wallet",
   SUBSCRIPTION: "whales_trace_subscription",
@@ -26,7 +25,6 @@ export default function Home() {
   const referralCode = useReferral();
   const { handleError } = useError();
 
-  // Инициализируем состояния из localStorage
   const [jwtPayload, setJwtPayload] = useState<JWTPayload | null>(() => {
     if (typeof window === "undefined") return null;
     const saved = localStorage.getItem(STORAGE_KEYS.JWT_PAYLOAD);
@@ -77,12 +75,10 @@ export default function Home() {
     checkAndConnectWebSocket();
   }, [checkAndConnectWebSocket]);
 
-  // Обновляем функцию connectWallet
   const connectWallet = async () => {
     try {
       if (isConnecting) return;
 
-      // Desktop flow
       const result = await connect();
       if (!result) return;
 
@@ -93,7 +89,6 @@ export default function Home() {
     }
   };
 
-  // Обновляем обработчик подключения кошелька
   const handleWalletConnection = useCallback(
     async (publicKey: string, signature: string, timestamp?: number) => {
       try {
@@ -136,7 +131,6 @@ export default function Home() {
     [handleError, checkAndConnectWebSocket, referralCode]
   );
 
-  // Функция проверки статуса подписки
   const checkSubscriptionStatus = async (token: string): Promise<boolean> => {
     try {
       const response = await fetch('https://whales.trace.foundation/api/payment', {
@@ -176,7 +170,6 @@ export default function Home() {
     }
   };
 
-  // Добавляем useEffect для отслеживания состояния кошелька и модальных окон
   useEffect(() => {
     if (!wallet) {
       setIsPaymentModalOpen(false);
@@ -195,18 +188,15 @@ export default function Home() {
     }
   }, [wallet]);
 
-  // Обновляем функцию отключения кошелька
   const disconnectWallet = () => {
      disconnect();
 
-    // Очищаем localStorage
     localStorage.removeItem(STORAGE_KEYS.WALLET);
     localStorage.removeItem(STORAGE_KEYS.JWT_PAYLOAD);
     localStorage.removeItem(STORAGE_KEYS.SUBSCRIPTION);
     localStorage.removeItem(STORAGE_KEYS.TOKEN);
     localStorage.removeItem('whales_trace_referral');
 
-    // Сбрасываем состояния
     setJwtPayload(null);
     setHasSubscription(false);
     setIsLoading(true);

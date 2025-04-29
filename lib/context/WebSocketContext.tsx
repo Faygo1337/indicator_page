@@ -38,9 +38,7 @@ interface WebSocketProviderProps {
 
 export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ 
   children,
-  // url = 'wss://whales.trace.foundation/api/stream' 
 }) => {
-  // Проверяем, что мы в браузерном окружении
   const updateCountRef = useRef(0);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const forceRefresh = useCallback(() => {
@@ -70,14 +68,6 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     }
   }, [cards.length]);
 
-
-  // useEffect(() => {
-  //
-  //   if (cards.length > 0) {
-  //     cards.forEach(card => {
-  //     });
-  //   }
-  // }, [cards, status, refreshCounter]);
 
   if (typeof window === 'undefined') {
     return <>{children}</>;
