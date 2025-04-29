@@ -164,15 +164,11 @@ export function usePhantomWallet(): PhantomMobileWalletState {
           signature,
           timestamp,
         };
-      } catch (error) {
-        console.error('Error signing message:', error);
-
-        throw error;
+      } catch {
+        return;
       }
-    } catch (error) {
-      console.error('Error connecting to Phantom wallet:', error);
+    } catch {
       setState((prev) => ({ ...prev, isConnecting: false }));
-      throw error;
     }
   }, [getProvider, state.isMobileDevice]);
 
@@ -193,8 +189,7 @@ export function usePhantomWallet(): PhantomMobileWalletState {
         await provider.disconnect();
       }
       resetWalletState();
-    } catch (error) {
-      console.error('Error disconnecting from Phantom wallet:', error);
+    } catch {
       resetWalletState();
     }
   }, [getProvider, resetWalletState]);
@@ -209,9 +204,8 @@ export function usePhantomWallet(): PhantomMobileWalletState {
         const encodedMessage = new TextEncoder().encode(message);
         const signedMessage = await provider.signMessage(encodedMessage, "utf8");
         return bs58.encode(signedMessage.signature);
-      } catch (error) {
-        console.error('Error signing message:', error);
-        throw error;
+      } catch {
+        return '';
       }
     },
     [getProvider, state.publicKey]
@@ -274,12 +268,10 @@ export function usePhantomWallet(): PhantomMobileWalletState {
           signature: 'mobile_signature'
         };
 
-      } catch (error) {
-        console.error('Decryption error:', error);
-        throw error;
+      } catch {
+        return;
       }
     } catch (error) {
-      console.error('Return processing error:', error);
       setState(prev => ({ ...prev, isConnecting: false }));
       throw error;
     }
@@ -288,7 +280,7 @@ export function usePhantomWallet(): PhantomMobileWalletState {
   useEffect(() => {
     if (window.location.search.includes('phantom_encryption_public_key')) {
       handleReturnFromPhantom().catch((error) => {
-        console.error('Failed to handle Phantom redirect:', error);
+        return;
       });
     }
   }, [handleReturnFromPhantom]);

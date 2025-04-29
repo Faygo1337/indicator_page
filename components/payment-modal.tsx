@@ -96,8 +96,8 @@ export function PaymentModal({
         const details = await getTransactionDetails(connection, signature);
         setTransactionDetails(details);
 
-      } catch (error) {
-        console.error('Error retrieving transaction details:', error);
+      } catch  {
+        return;
       }
 
       setStatus('checking');
@@ -115,8 +115,8 @@ export function PaymentModal({
             try {
               const updatedDetails = await getTransactionDetails(connection, signature);
               setTransactionDetails(updatedDetails);
-            } catch (error) {
-              console.error('Error retrieving transaction details:', error);
+            } catch {
+                return;
             }
             
             setStatus('confirming');
@@ -168,8 +168,8 @@ export function PaymentModal({
               }
             }, 5000); // Проверка каждые 5 секунд
           }
-        } catch (error) {
-          console.error('Error checking status transaction:', error);
+        } catch  {
+          return;
         }
       }, 2000);
 
@@ -211,9 +211,8 @@ export function PaymentModal({
         }
         
         setAmountSOL(amount);
-      } catch (error) {
-        console.error('Error fetching subscription price:', error);
-        setError('Failed to get current price');
+      } catch  {
+        return;
       }
     };
 

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { CryptoCard as CryptoCardType } from "@/lib/api/types";
 import { CryptoCard } from "@/components/crypto-card";
-
+import { motion, AnimatePresence } from "framer-motion";
 import { formatMarketCap } from "@/lib/utils";
 
 // Расширенный тип для карточек с дополнительными полями
@@ -11,10 +11,10 @@ interface ExtendedCryptoCard extends CryptoCardType {
   id: string;
   _receivedAt: number;
   _lastUpdated: number;
-  tokenCreatedAt?: number; // Добавляем поле для хранения timestamp создания токена
+  tokenCreatedAt?: number;
   _circulatingSupply?: number;
   _lastPrice?: number;
-  [key: string]: unknown; // Для других динамических полей
+  [key: string]: unknown;
 }
 
 // Добавляем интерфейс для WebSocket сообщений
@@ -91,20 +91,10 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
 
         // Обработка сообщения
         processMessage(data);
-      } catch (err) {
-        console.error("Ошибка обработки сообщения:", err);
+      } catch {
+        return;
       }
     };
-
-    // ws.onerror = (err) => {
-    //   console.error("WebSocket ошибка:", err);
-    // };
-
-    // ws.onclose = () => {
-    //   webSocketRef.current = null;
-    //   setCards([]);
-    // };
-
 
     return () => {
       if (webSocketRef.current) {
@@ -116,7 +106,6 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
   // Функция отключения WebSocket
   const disconnectWebSocket = useCallback(() => {
     if (webSocketRef.current) {
-
       webSocketRef.current.close();
       webSocketRef.current = null;
       setCards([]);
@@ -191,43 +180,15 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
     };
   }, []);
 
-  // Добавляем taп обработки сообщений
-  // const isUpdateSignalMessage = (message: WebsocketMessage): boolean => {
-  //   if (
-  //     !message ||
-  //     !message.token ||
-  //     typeof message.token !== "string" ||
-  //     message.token.trim() === ""
-  //   ) {
-  //     return false;
-  //   }
-
-  //   // Проверяем наличие хотя бы одного из полей обновления
-  //   const hasMarketData =
-  //     message.market &&
-  //     typeof message.market === "object" &&
-  //     Object.keys(message.market).length > 0;
-  //   const hasHoldingsData =
-  //     message.holdings &&
-  //     typeof message.holdings === "object" &&
-  //     Object.keys(message.holdings).length > 0;
-  //   const hasTradesData =
-  //     message.trades &&
-  //     Array.isArray(message.trades) &&
-  //     message.trades.length > 0;
-
-  //   return hasMarketData || hasHoldingsData || hasTradesData || false;
-  // };
-
   function safeString(value: unknown, defaultValue: string): string {
     if (value === null || value === undefined) {
       return defaultValue;
     }
-    
+
     if (typeof value === 'string') {
       return value.trim() || defaultValue;
     }
-    
+
     // Handle non-string values by converting to string
     const stringValue = String(value).trim();
     return stringValue || defaultValue;
@@ -492,16 +453,8 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
       return;
     }
 
-    // console.log(`Обработка сообщения для токена: ${tokenId}`, message);
-
-    // // Проверяем, является ли сообщение сигналом обновления
-    // const isUpdate = isUpdateSignalMessage(message);
-    // console.log(`Сообщение для ${tokenId} является обновлением: ${isUpdate}`);
-
     // Проверяем и преобразуем значения в научной нотации для holdings
     if (message.holdings && typeof message.holdings === "object") {
-
-
       // Преобразуем значения в scientific notation в нормальные числа
       const convertScientificNotation = (obj: Record<string, unknown>) => {
         Object.keys(obj).forEach((key) => {
@@ -515,8 +468,6 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
               typeof value === "string" ? parseFloat(value) : value;
             if (!isNaN(numValue)) {
               obj[key] = numValue;
-              // Логируем если значение было в научной нотации
-              
             }
           }
         });
@@ -536,7 +487,6 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
 
         // Если карточка существует - обновляем её
         if (existingIndex >= 0 && prevCards[existingIndex]) {
-
           // Глубокое копирование массива и существующей карточки для избежания мутаций
           const updatedCards = structuredClone(prevCards);
           const existingCard = updatedCards[existingIndex];
@@ -544,18 +494,6 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
           if (!existingCard) {
             return prevCards;
           }
-
-          // Обновляем только те поля, которые есть в сообщении и не null/undefined
-         
-
-          // Проверяем обновляемые поля
-          // const fieldsBeingUpdated = Object.keys(message).filter(
-          //   (key) =>
-          //     key !== "token" &&
-          //     message[key] !== undefined &&
-          //     message[key] !== null
-          // );
-
 
           Object.entries(message).forEach(([key, value]) => {
             // Обработка timestamp создания токена
@@ -587,14 +525,7 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
                     (updatedCards[existingIndex] as Record<string, unknown>)[
                       key
                     ] = value;
-                  } 
-                  // else if (
-                  //   Array.isArray(existingCard[key]) &&
-                  //   (existingCard[key] as unknown[]).length > 0
-                  // ) {
-                  //   // Сохраняем существующий массив, если новый пустой
-                  //   console.log(`Сохраняем существующий массив для ${key}`);
-                  // }
+                  }
                 } else if (value !== null && Object.keys(value).length > 0) {
                   // Для вложенных объектов выполняем глубокое слияние с приоритетом существующих значений
                   const currentValue =
@@ -650,7 +581,6 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
                           newMarket[field] === null ||
                           newMarket[field] === 0)
                       ) {
-                       
                         newMarket[field] = existingMarket[field];
                       }
                     });
@@ -658,34 +588,20 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
                 }
                 // Для остальных типов данных проверяем на пустые значения
                 else {
-                  // // Для числовых полей сохраняем существующие значения, если новые равны 0
-                  // if (
-                  //   typeof value === "number" &&
-                  //   value === 0 &&
-                  //   typeof existingCard[key] === "number" &&
-                  //   (existingCard[key] as number) > 0
-                  // ) {
-                  //   // Сохраняем существующее значение
-                  //   console.log(
-                  //     `Сохраняем существующее числовое значение для ${key}: ${existingCard[key]}`
-                  //   );
-                  // } else {
-                    // Для boolean значений используем nullish coalescing
-                    if (
-                      typeof existingCard[key] === "boolean" &&
-                      typeof value !== "boolean"
-                    ) {
-                      (updatedCards[existingIndex] as Record<string, unknown>)[
-                        key
-                      ] = value ?? existingCard[key];
-                    } else {
-                      (updatedCards[existingIndex] as Record<string, unknown>)[
-                        key
-                      ] = value;
-                    }
+                  if (
+                    typeof existingCard[key] === "boolean" &&
+                    typeof value !== "boolean"
+                  ) {
+                    (updatedCards[existingIndex] as Record<string, unknown>)[
+                      key
+                    ] = value ?? existingCard[key];
+                  } else {
+                    (updatedCards[existingIndex] as Record<string, unknown>)[
+                      key
+                    ] = value;
                   }
                 }
-              // }
+              }
             }
           });
 
@@ -813,25 +729,6 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
                 first70Value as string | number
               );
             }
-
-            // console.log(`Обновлены данные holdings для ${tokenId}:`, {
-            //   top10: (
-            //     updatedCards[existingIndex] as unknown as { top10: string }
-            //   ).top10,
-            //   devWalletHold: (
-            //     updatedCards[existingIndex] as unknown as {
-            //       devWalletHold: string;
-            //     }
-            //   ).devWalletHold,
-            //   insiders: (
-            //     updatedCards[existingIndex] as unknown as { insiders: string }
-            //   ).insiders,
-            //   first70BuyersHold: (
-            //     updatedCards[existingIndex] as unknown as {
-            //       first70BuyersHold: string;
-            //     }
-            //   ).first70BuyersHold,
-            // });
           }
 
           // Проверяем, что все необходимые поля присутствуют в обновленной карточке
@@ -879,6 +776,7 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
             dexWallets: 0,
             trades: [],
             alerts: [],
+
           };
 
           // Применяем дефолтные значения где необходимо
@@ -900,8 +798,8 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
 
         // Добавляем новую карточку к списку и сортируем
         return sortCardsByAge([...prevCards, newCard]).slice(0, MAX_CARDS);
-      } catch (error) {
-        console.error("Ошибка при обновлении карточек:", error);
+      } catch {
+
         return prevCards;
       }
     });
@@ -917,15 +815,29 @@ export function ConnectWebSocket({ hasSubscription, wallet }: { hasSubscription:
       s = sec % 60;
     return `${d ? d + "d " : ""}${h ? h + "h " : ""}${m ? m + "m " : ""}${s}s`;
   }
+
   return (
     <div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {cards.map((card) => (
-          <CryptoCard key={card.id} data={card} />
-        ))}
-      </div>
+      <AnimatePresence>
+        <motion.div
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          {cards.map((card) => (
+            <motion.div
+              key={card.id}
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.5 }}
+            >
+              <CryptoCard data={card} />
+            </motion.div>
+          ))}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
-
-

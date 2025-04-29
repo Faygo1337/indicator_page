@@ -118,7 +118,7 @@ export default function Home() {
           setJwtPayload(payload);
           localStorage.setItem('whales_trace_jwt', JSON.stringify(payload));
         } else {
-          console.error("Не удалось декодировать JWT токен");
+          return
         }
 
         const isSubscriptionValid = await checkAndConnectWebSocket();
@@ -152,8 +152,8 @@ export default function Home() {
       let data;
       try {
         data = JSON.parse(responseText);
-      } catch (e) {
-        console.error('Error parsing:', e);
+      } catch {
+      
         return false;
       }
 
@@ -216,7 +216,6 @@ export default function Home() {
     try {
       const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
       if (!token) {
-        console.error("Токен не найден в localStorage");
         return;
       }
 

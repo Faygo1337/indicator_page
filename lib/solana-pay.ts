@@ -54,9 +54,9 @@ export async function sendPaymentTransaction(
     await connection.confirmTransaction(signature);
 
     return signature;
-  } catch (error) {
-    console.error('Ошибка отправки транзакции:', error);
-    throw error;
+  } catch {
+    return '';
+
   }
 }
 
@@ -69,7 +69,6 @@ export async function checkTransactionStatus(
     const signatureStatus = await connection.getSignatureStatus(signature);
 
     if (signatureStatus.value?.err) {
-      console.error('Ошибка в транзакции:', signatureStatus.value.err);
       return false;
     }
 
@@ -77,8 +76,8 @@ export async function checkTransactionStatus(
       signatureStatus.value?.confirmationStatus === 'finalized';
 
     return isConfirmed;
-  } catch (error) {
-    console.error('Error checked status transaction:', error);
+  } catch {
+
     return false;
   }
 }
@@ -145,9 +144,8 @@ export async function getTransactionDetails(
 
     return transactionDetails;
 
-  } catch (error) {
-    console.error('[Transaction] Ошибка при получении деталей транзакции:', error);
-    throw error;
+  } catch {
+    return null
   }
 }
 

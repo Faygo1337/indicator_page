@@ -65,7 +65,7 @@ const ANIMATION_DURATION = 1000; // 1 секунда для анимации
 // Функция для преобразования строки market cap в число с учетом суффиксов
 const convertMarketCapToValue = (marketCap: string): number => {
   if (!marketCap || marketCap === 'N/A') return 0;
-
+  
   // Очищаем строку от всего кроме чисел, точки и суффикса
   const cleanStr = marketCap.trim();
   const numStr = cleanStr.replace(/[^\d.KMBkmb]/g, '');
@@ -587,6 +587,7 @@ export function CryptoCard({
             style={{ justifyContent: "space-between", marginBottom: "1rem" }}
           >
             <div className="flex items-center gap-2">
+            
               <div className="h-12 w-12 rounded-md overflow-hidden bg-gray-800 flex items-center justify-center">
                 {imageError || !displayData?.image ? (
                   <div className="text-xl font-bold text-gray-400">
@@ -602,14 +603,40 @@ export function CryptoCard({
                     onError={handleImageError}
                   />
                 )}
+               
               </div>
               <div>
                 <div className="flex items-center gap-1">
                   <span className="uppercase font-semibold text-base truncate max-w-[180px]">
                     {displayData?.symbol}
                   </span>
-                  {isConnected && (
-                    <span className="h-2 w-2 rounded-full bg-green-500" />
+                  {isConnected &&  (
+                    <>
+                    <motion.span
+                    className="h-2 w-2 rounded-full bg-green-500 mr-1"
+                    animate={{ opacity: [1, 0.2, 1] }}
+                    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                  />
+                    <div>
+                      {data?.tokenAge && data?.tokenAge < "1" && ( 
+                    <motion.div
+                      className="flex items-center z-10 mt-1/2"
+                      
+                    >
+                      
+                      <motion.span
+                        className="text-green-500 shadow-md text-[10px] font-kindergarten"
+                        animate={{ opacity: [1, 0.2, 1] }}
+                        transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                      >
+                        NEW!
+                      </motion.span>
+                    </motion.div>
+                  
+                  )}
+                    </div></>
+                    
+                   
                   )}
                 </div>
 

@@ -155,8 +155,8 @@ class ApiGeneralService {
     }
 
     if (!token) {
-      console.error("Отсутствует токен доступа для WebSocket");
-      this.notifyError(new Error("Отсутствует токен доступа"));
+
+      this.notifyError(new Error("No access token"));
       return;
     }
 
@@ -173,7 +173,6 @@ class ApiGeneralService {
       await new Promise(resolve => setTimeout(resolve, 500));
       this.initWebSocket();
     } catch (error) {
-      console.error("Ошибка подключения WebSocket:", error);
       this.notifyError(error);
       this.connecting = false;
     }
@@ -235,8 +234,7 @@ class ApiGeneralService {
     try {
       // Проверка доступности WebSocket API
       if (typeof WebSocket === 'undefined') {
-        console.error("WebSocket API не доступен в текущем окружении");
-        this.notifyError(new Error("WebSocket API не доступен"));
+        this.notifyError(new Error("WebSocket API not supported"));
         this.attemptingReconnect = false;
         return;
       }
@@ -261,7 +259,6 @@ class ApiGeneralService {
         }
       }, 15000);
     } catch (error) {
-      console.error("Ошибка инициализации WebSocket:", error);
       this.connecting = false;
       this.notifyError(error);
       this.attemptingReconnect = false;
@@ -296,12 +293,10 @@ class ApiGeneralService {
    */
   private sendAuthMessage(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.error("WebSocket не подключен. Невозможно отправить авторизацию.");
       return;
     }
 
     if (!this.accessToken) {
-      console.error("Отсутствует токен доступа для авторизации WebSocket");
       return;
     }
 
@@ -312,7 +307,6 @@ class ApiGeneralService {
       // Установим флаг успешного подключения после отправки
       this.connectionEstablished = true;
     } catch (error) {
-      console.error("Ошибка отправки авторизации:", error);
       this.notifyError(error);
     }
   }
@@ -331,7 +325,6 @@ class ApiGeneralService {
       try {
         message = JSON.parse(event.data);
       } catch {
-        console.error('[API] Ошибка при разборе сообщения:', event.data);
         return;
       }
 
@@ -368,19 +361,17 @@ class ApiGeneralService {
 
       this.messageReceivedFlag = true;
     } catch (err) {
-      console.error('[API] Ошибка обработки сообщения:', err);
       this.notifyError(err);
     }
   }
 
 
   private handleError(): void {
-    console.error("Получена ошибка WebSocket");
 
     this.connectionEstablished = false;
 
     // Просто передаем ошибку
-    this.notifyError(new Error("Ошибка соединения WebSocket"));
+    this.notifyError(new Error("Error connected to WebSocket"));
 
     this.attemptingReconnect = false;
   }
@@ -425,7 +416,6 @@ class ApiGeneralService {
 
   private reconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error("Превышено максимальное количество попыток переподключения");
       return;
     }
 
@@ -467,8 +457,8 @@ class ApiGeneralService {
         if (currentState !== WebSocket.CLOSED && currentState !== WebSocket.CLOSING) {
           this.ws.close(1000, "Нормальное закрытие");
         }
-      } catch (error) {
-        console.error("Ошибка закрытия WebSocket:", error);
+      } catch {
+        return;
       }
 
       this.ws = null;
@@ -500,8 +490,8 @@ class ApiGeneralService {
     for (const callback of this.updateSignalCallbacks) {
       try {
         callback(token, updates);
-      } catch (error) {
-        console.error("Ошибка в обработчике обновления сигнала:", error);
+      } catch {
+        return;
       }
     }
   }
@@ -513,8 +503,8 @@ class ApiGeneralService {
     for (const callback of this.errorCallbacks) {
       try {
         callback(error);
-      } catch (err) {
-        console.error("Ошибка в обработчике ошибок:", err);
+      } catch {
+        return;
       }
     }
   }
@@ -739,11 +729,10 @@ class ApiGeneralService {
       try {
         parsedMessage = JSON.parse(message);
       } catch {
-        console.error('[API] Ошибка при разборе сообщения:', message);
         return {
           type: 'unknown',
           data: null,
-          error: 'Ошибка при разборе JSON сообщения'
+          error: 'Error parsing message'
         };
       }
 
@@ -752,7 +741,7 @@ class ApiGeneralService {
         return {
           type: 'unknown',
           data: null,
-          error: 'Сообщение не является объектом'
+          error: 'Message is not an object'
         };
       }
 
@@ -778,15 +767,15 @@ class ApiGeneralService {
       return {
         type: 'unknown',
         data: parsedMessage,
-        error: 'Неизвестный тип сообщения'
+        error: 'Unknown type of message'
       };
 
     } catch (err) {
-      console.error('[API] Ошибка обработки сообщения:', err);
+
       return {
         type: 'unknown',
         data: null,
-        error: err instanceof Error ? err.message : 'Неизвестная ошибка'
+        error: err instanceof Error ? err.message : 'Error processing message'
       };
     }
   }
@@ -829,8 +818,8 @@ export async function getReferralStats(): Promise<ReferralResponse> {
       }
     });
     return response.data;
-  } catch (error) {
-    console.error('Ошибка при получении реферальной статистики:', error);
+  } catch {
+
     return { refCount: 0, refEarnings: 0 };
   }
 }

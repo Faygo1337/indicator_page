@@ -98,8 +98,8 @@ export function useWebSocketData(): [
 
 
   const handleError = useCallback((err: unknown) => {
-    console.error('[WebSocket] Ошибка:', err);
-    const message = err instanceof Error ? err.message : 'Ошибка соединения с WebSocket';
+
+    const message = err instanceof Error ? err.message : 'Error connected to WebSocket';
     setError(message);
     setStatus('error');
   }, []);
@@ -120,8 +120,7 @@ export function useWebSocketData(): [
         setStatus('connected');
       })
       .catch((err: Error) => {
-        console.error('[WebSocket] Ошибка при переподключении:', err);
-        setError(err.message || 'Не удалось переподключиться');
+        setError(err.message || 'Not connected');
         setStatus('error');
       });
   }, [status]);
@@ -160,8 +159,7 @@ export function useWebSocketData(): [
         setStatus('connected');
       })
       .catch((err: Error) => {
-        console.error('[WebSocket] Ошибка подключения:', err);
-        setError(err.message || 'Не удалось подключиться');
+        setError(err.message || 'Not connected');
         setStatus('error');
       });
 

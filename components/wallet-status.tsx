@@ -47,9 +47,8 @@ export function WalletStatus({
       
       await onConnectAction();
     } catch (error) {
-      console.error("Failed to connect wallet:", error);
       setHasError(true);
-      setErrorMessage(error instanceof Error ? error.message : "Не удалось подключить кошелек");
+      setErrorMessage(error instanceof Error ? error.message : "failed to connect");
       
       // Автоматически сбрасываем ошибку через 5 секунд
       setTimeout(() => {
@@ -89,7 +88,7 @@ export function WalletStatus({
         variant="destructive"
         onClick={handleConnect}
         className="bg-red-900/70 hover:bg-red-900/90 text-white flex items-center gap-2"
-        title={errorMessage || "Ошибка подключения"}
+        title={errorMessage || "Error connecting wallet"}
       >
         <AlertCircle className="h-4 w-4" />
         <span>Повторить подключение</span>

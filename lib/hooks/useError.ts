@@ -71,7 +71,6 @@ export function useError() {
     });
 
     // Log error for debugging
-    console.error('[Error Handler]', { code, message, context, error });
 
     return code;
   };
