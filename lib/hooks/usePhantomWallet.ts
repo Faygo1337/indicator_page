@@ -79,11 +79,10 @@ export function usePhantomWallet(): PhantomMobileWalletState {
       }
     }
 
-    if (typeof window !== 'undefined') {
-      window.open('https://phantom.app/', '_blank');
-    }
+    // If Phantom is not detected, do not open the Phantom app URL
     return null;
   }, []);
+
 
   const checkMobileDevice = useCallback(() => {
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
@@ -93,30 +92,14 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     return isMobile;
   }, []);
 
+
   const connect = useCallback(async () => {
     try {
       setState((prev) => ({ ...prev, isConnecting: true }));
 
-      if (state.isMobileDevice) {
-        const keypair = nacl.box.keyPair();
-        const encodedPublicKey = bs58.encode(keypair.publicKey);
-
-        localStorage.setItem('dapp_public_key', encodedPublicKey);
-
-        const params = new URLSearchParams({
-          dapp_encryption_public_key: encodedPublicKey,
-          redirect_url: window.location.href,
-          app_url: window.location.origin,
-          cluster: 'mainnet-beta'
-        });
-
-        window.location.href = `https://phantom.app/ul/v1/connect?${params.toString()}`;
-        return;
-      }
-
       const provider = getProvider();
       if (!provider) {
-        handleError(new Error('Phantom wallet not installed'));
+        handleError(new Error('Phantom wallet not installed or detected'));
         return;
       }
 
@@ -150,7 +133,10 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     } catch {
       setState((prev) => ({ ...prev, isConnecting: false }));
     }
-  }, [getProvider, state.isMobileDevice]);
+  }, [getProvider]);
+
+
+
 
   const resetWalletState = useCallback(() => {
     setState((prev) => ({
@@ -256,6 +242,7 @@ export function usePhantomWallet(): PhantomMobileWalletState {
     }
   }, []);
 
+
   useEffect(() => {
     if (window.location.search.includes('phantom_encryption_public_key')) {
       handleReturnFromPhantom().catch((error) => {
@@ -288,6 +275,7 @@ export function usePhantomWallet(): PhantomMobileWalletState {
   useEffect(() => {
     checkMobileDevice();
   }, [checkMobileDevice]);
+
 
   return {
     ...state,

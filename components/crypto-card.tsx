@@ -548,7 +548,7 @@ export function CryptoCard({
                     transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
                   />
                     <div>
-                      {data?.tokenAge && data?.tokenAge < "1" && ( 
+                      {data?.tokenAge && data?.tokenAge < "1h" && ( 
                     <motion.div
                       className="flex items-center z-10 mt-1/2"
                       
