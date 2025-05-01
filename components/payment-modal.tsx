@@ -62,7 +62,7 @@ export function PaymentModal({
   const [amountSOL, setAmountSOL] =  useState<number>(0); 
 
   const openInSolscan = useCallback((signature: string) => {
-    const url = `https://solscan.io/tx/${signature}?cluster=devnet`;
+    const url = `https://solscan.io/tx/${signature}`;
     window.open(url, '_blank');
   }, []);
 
@@ -78,8 +78,7 @@ export function PaymentModal({
       setError(null);
       setTransactionDetails(null);
 
-      const connection = new Connection('https://api.devnet.solana.com');
-
+      const connection = new  Connection('https://api.mainnet-beta.solana.com');
 
       const signature = await sendPaymentTransaction(
         connection,

@@ -20,7 +20,10 @@ export enum ErrorCodes {
   // Generic errors
   SERVER_ERROR = 'SERVER_ERROR',
   NETWORK_ERROR = 'NETWORK_ERROR',
-  UNKNOWN_ERROR = 'UNKNOWN_ERROR'
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
+
+  //
+  CONNECT_WALLET_ERROR = 'CONNECT_WALLET_FAILED'
 }
 
 export const ErrorMessages: Record<ErrorCode, string> = {
@@ -36,7 +39,8 @@ export const ErrorMessages: Record<ErrorCode, string> = {
   WS_AUTH_FAILED: 'WebSocket authentication failed',
   SERVER_ERROR: 'Internal server error occurred',
   NETWORK_ERROR: 'Network error occurred',
-  UNKNOWN_ERROR: 'An unknown error occurred'
+  UNKNOWN_ERROR: 'An unknown error occurred',
+  CONNECT_WALLET_ERROR: 'Error connecting the wallet. Please reload the page and try again.'
 };
 
 export type ErrorCode = keyof typeof ErrorCodes;

@@ -94,7 +94,7 @@ export async function getTransactionDetails(
 
     const transactionDetails = {
       signature,
-      solscanUrl: `https://solscan.io/tx/${signature}?cluster=devnet`,
+      solscanUrl: `https://solscan.io/tx/${signature}`,
       timestamp: response.blockTime ? new Date(response.blockTime * 1000).toISOString() : null,
       status: response.meta?.err ? 'error' : 'success',
       slot: response.slot,
