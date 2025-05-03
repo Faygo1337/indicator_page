@@ -84,6 +84,7 @@ export default function Home() {
 
       const { publicKey, signature, timestamp } = result;
       await handleWalletConnection(publicKey, signature, timestamp);
+      console.log(publicKey, signature, timestamp)
     } catch {
       handleError("CONNECT_WALLET_FAILED");
     }
@@ -98,12 +99,12 @@ export default function Home() {
           timestamp,
           referralCode?.toString()
         );
-
+        
         if (!verifyResponse.token) {
           handleError("CONNECT_WALLET_FAILED");
           return;
         }
-
+     
         localStorage.setItem(STORAGE_KEYS.WALLET, publicKey);
         localStorage.setItem(STORAGE_KEYS.TOKEN, verifyResponse.token);
 

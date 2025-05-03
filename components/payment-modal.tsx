@@ -34,7 +34,6 @@ function DialogContent({
         {...props}
       >
         {children}
-        {/* Кнопка закрытия удалена */}
       </DialogPrimitive.Content>
     </DialogPortal>
   );
@@ -58,13 +57,23 @@ export function PaymentModal({
   const [error, setError] = useState<string | null>(null);
   const [transactionDetails, setTransactionDetails] = useState<any>(null);
   const [isCopied, setIsCopied] = useState(false);
-  const { provider: wallet, connect } = usePhantomWallet();
-  const [amountSOL, setAmountSOL] =  useState<number>(0); 
+  const { provider: wallet, connect, disconnect } = usePhantomWallet();
+  const [amountSOL, setAmountSOL] = useState<number>(0);
 
   const openInSolscan = useCallback((signature: string) => {
     const url = `https://solscan.io/tx/${signature}`;
     window.open(url, '_blank');
   }, []);
+
+  const handleReconnect = async () => {
+    try {
+      await disconnect(); 
+      await connect(); 
+    } catch (error) {
+      console.error('Error reconnecting:', error);
+      setError('Failed to reconnect. Please try again.');
+    }
+  };
 
   const handlePayment = async () => {
     try {
@@ -78,7 +87,9 @@ export function PaymentModal({
       setError(null);
       setTransactionDetails(null);
 
-      const connection = new  Connection('https://api.mainnet-beta.solana.com');
+      const connection = new Connection('https://api.mainnet-beta.solana.com', {
+        wsEndpoint: 'wss://api.mainnet-beta.solana.com'
+      });
 
       const signature = await sendPaymentTransaction(
         connection,
@@ -87,84 +98,107 @@ export function PaymentModal({
         amountSOL
       );
 
-      try {
-        const details = await getTransactionDetails(connection, signature);
-        setTransactionDetails(details);
-
-      } catch  {
-        return;
+      console.log('Transaction signature:', signature);
+      if (!signature) {
+        throw new Error('Failed to send transaction');
       }
 
       setStatus('checking');
 
-      let isConfirmed = false;
-      const checkTxInterval = setInterval(async () => {
-        try {
-          isConfirmed = await checkTransactionStatus(connection, signature);
-          
-          if (isConfirmed) {
-            clearInterval(checkTxInterval);
-            
-            try {
-              const updatedDetails = await getTransactionDetails(connection, signature);
-              setTransactionDetails(updatedDetails);
-            } catch {
-                return;
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            reject(new Error('Confirmation waiting timeout'));
+          }, 60000);
+          connection.onSignature(signature, (result, context) => {
+            clearTimeout(timeoutId);
+            if (result.err) {
+              reject(new Error('Transaction failed'));
+            } else {
+              resolve();
             }
-            
-            setStatus('confirming');
-
-            let retryCount = 0;
-            const maxRetries = 60; 
-            let isSubscriptionActive = false;
-
-            const checkPaymentInterval = setInterval(async () => {
-              try {
-                await onCheckPaymentAction();
-                const token = localStorage.getItem('whales_trace_token');
-                if (token) {
-                  const response = await fetch('https://whales.trace.foundation/api/payment', {
-                    method: 'GET',
-                    headers: {
-                      'Authorization': `Bearer ${token}`,
-                      'Content-Type': 'application/json'
-                    }
-                  });
-                  const data = await response.json();
-                  
-                  if (data.hasSubscription === true) {
-                    isSubscriptionActive = true;
-                    clearInterval(checkPaymentInterval);
-                    setIsProcessing(false);
-                    onOpenChangeAction(false); 
-                    window.location.reload();
-                  }
-                }
-                retryCount++;
-                
-                if (retryCount >= maxRetries) {
-                  clearInterval(checkPaymentInterval);
-                  setIsProcessing(false);
-                  setError('Subscription confirmation timeout. Please contact support.');
-                }
-              } catch (error) {
-                retryCount++;
-                
-                if (retryCount >= maxRetries) {
-                  clearInterval(checkPaymentInterval);
-                  setIsProcessing(false);
-                    setError('Subscription confirmation timeout. Please contact support.');
-                }
-              }
-            }, 5000); 
+          }, 'confirmed');
+        });
+      } catch (wsError) {
+        console.error('Error WebSocket:', wsError);
+        setError('WebSocket connection error. Switch to polling.');
+        let confirmed = false;
+        const startTime = Date.now();
+        while (!confirmed && (Date.now() - startTime < 60000)) {
+          try {
+            const status = await connection.getSignatureStatus(signature);
+            if (status.value && !status.value.err) {
+              confirmed = true;
+            } else {
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+          } catch (pollError) {
+            console.error('Error polling:', pollError);
+            await new Promise(resolve => setTimeout(resolve, 2000));
           }
-        } catch  {
-          return;
         }
-      }, 2000);
+        if (!confirmed) {
+          throw new Error('Тайм-аут подтверждения транзакции');
+        }
+      }
+
+      setStatus('confirming');
+
+      try {
+        const details = await getTransactionDetails(connection, signature);
+        setTransactionDetails(details);
+      } catch (error) {
+        console.error('Ошибка получения деталей транзакции:', error);
+      }
+
+      let retryCount = 0;
+      const maxRetries = 60;
+      let isSubscriptionActive = false;
+
+      const checkPaymentInterval = setInterval(async () => {
+        try {
+          await onCheckPaymentAction();
+          const token = localStorage.getItem('whales_trace_token');
+          if (token) {
+            const response = await fetch('https://whales.trace.foundation/api/payment', {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            const data = await response.json();
+
+            if (data.hasSubscription === true) {
+              isSubscriptionActive = true;
+              clearInterval(checkPaymentInterval);
+              setIsProcessing(false);
+              onOpenChangeAction(false);
+              window.location.reload();
+            }
+          }
+          retryCount++;
+
+          if (retryCount >= maxRetries) {
+            clearInterval(checkPaymentInterval);
+            setIsProcessing(false);
+            setError('Subscription confirmation timeout. Contact support.');
+          }
+        } catch (error) {
+          console.error('Error checked signature:', error);
+          retryCount++;
+
+          if (retryCount >= maxRetries) {
+            clearInterval(checkPaymentInterval);
+            setIsProcessing(false);
+            setError('Subscription confirmation timeout. Contact support.');
+          }
+        }
+      }, 5000);
 
     } catch (error) {
-      setError('Error sending transaction. Please check wallet address and amount.');
+      console.error('Ошибка в handlePayment:', error);
+      setError(`Error sending the transaction. Check the wallet address and amount.`);
       setIsProcessing(false);
     }
   };
@@ -184,24 +218,24 @@ export function PaymentModal({
             'Authorization': token ? `Bearer ${token}` : '',
           }
         });
-        
+
         if (!response.ok) {
-          throw new Error('Failed to fetch price');
+          throw new Error('Failed getting price');
         }
-        
+
         const data = await response.json();
         if (!data.price) {
-          throw new Error('Invalid price format');
+          throw new Error('Incorrect price format');
         }
-        
+
         const amount = parseFloat(data.price);
         if (isNaN(amount)) {
-          throw new Error('Invalid price value');
+          throw new Error('Incorrect price value');
         }
-        
+
         setAmountSOL(amount);
-      } catch  {
-        return;
+      } catch (error) {
+        console.error('Price retrieval error:', error);
       }
     };
 
@@ -212,16 +246,26 @@ export function PaymentModal({
 
   return (
     <Dialog open={open}>
-      <DialogContent 
+      <DialogContent
         className="sm:max-w-md"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
+        
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold">Please topup wallet</DialogTitle>
-          <DialogDescription className="text-sm text-gray-400">
-            Send {amountSOL} SOL to activate your subscription
-          </DialogDescription>
+          <div className="flex items-center justify-between">
+          <DialogTitle className="text-lg font-semibold">Topup wallet</DialogTitle>
+            <DialogTitle
+              onClick={handleReconnect}
+              className="text-sm text-purple-400 hover:text-purple-300 cursor-pointer"
+            >
+              Reconnect →
+            </DialogTitle>
+          </div>
+          
+            <DialogDescription className="text-sm text-gray-400">
+              Send {amountSOL} SOL to activate your subscription
+            </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col items-center justify-center space-y-4 py-2">
@@ -241,8 +285,8 @@ export function PaymentModal({
                   onClick={handleCopyAddress}
                   className={cn(
                     "absolute right-2 top-1/2 -translate-y-1/2 h-7 text-xs transition-all duration-200",
-                    isCopied 
-                      ? "text-purple-300 bg-purple-900/40" 
+                    isCopied
+                      ? "text-purple-300 bg-purple-900/40"
                       : "text-purple-400 hover:text-purple-300 hover:bg-purple-900/30"
                   )}
                 >
@@ -252,15 +296,14 @@ export function PaymentModal({
             </div>
           </div>
 
-          {/* Кнопка оплаты */}
           <div className="flex flex-col w-full gap-4 mt-2">
             <Button
               onClick={handlePayment}
               disabled={isProcessing}
               className={cn(
                 "relative w-full py-2 text-sm font-medium transition-all duration-200",
-                isProcessing 
-                  ? "bg-purple-900/50 border border-purple-700/50" 
+                isProcessing
+                  ? "bg-purple-900/50 border border-purple-700/50"
                   : "bg-purple-600 hover:bg-purple-500 hover:scale-[1.02] transform"
               )}
             >
@@ -291,15 +334,14 @@ export function PaymentModal({
           {transactionDetails && (
             <div className="mt-2 p-2 bg-purple-900/20 rounded-lg border border-purple-700/30">
               <div className="flex items-center justify-between gap-1">
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   className="flex-1 font-mono text-[12px] text-purple-300/80 hover:text-purple-300 px-2 h-7"
                   onClick={() => {
                     navigator.clipboard.writeText(transactionDetails.signature);
-
                   }}
                 >
-                 Hash: {`${transactionDetails.signature.slice(0, 4)}...${transactionDetails.signature.slice(-4)}`}
+                  Hash: {`${transactionDetails.signature.slice(0, 4)}...${transactionDetails.signature.slice(-4)}`}
                 </Button>
                 <Button
                   variant="ghost"
