@@ -540,33 +540,15 @@ export function CryptoCard({
                   <span className="uppercase font-semibold text-base truncate max-w-[180px]">
                     {displayData?.symbol}
                   </span>
+
+
                   {isConnected &&  (
-                    <>
+                    
                     <motion.span
                     className="h-2 w-2 rounded-full bg-green-500 mr-1"
                     animate={{ opacity: [1, 0.2, 1] }}
                     transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
                   />
-                    <div>
-                      {data?.tokenAge && data?.tokenAge < "1h" && ( 
-                    <motion.div
-                      className="flex items-center z-10 mt-1/2"
-                      
-                    >
-                      
-                      <motion.span
-                        className="text-green-500 shadow-md text-[10px] font-kindergarten"
-                        animate={{ opacity: [1, 0.2, 1] }}
-                        transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                      >
-                        NEW!
-                      </motion.span>
-                    </motion.div>
-                  
-                  )}
-                    </div></>
-                    
-                   
                   )}
                 </div>
 

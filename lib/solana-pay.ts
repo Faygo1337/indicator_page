@@ -1,4 +1,10 @@
-import { PublicKey, Connection, Transaction, SystemProgram, TransactionInstruction } from '@solana/web3.js';
+import {
+  PublicKey,
+  Connection,
+  Transaction,
+  SystemProgram,
+  TransactionInstruction,
+} from '@solana/web3.js';
 
 const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
 
@@ -15,7 +21,7 @@ export async function sendPaymentTransaction(
 
     const fromPublicKey = new PublicKey(wallet.publicKey.toString());
     const toPublicKey = new PublicKey(toWallet);
-    const lamports = amountSOL * 1e9;
+    const lamports = Math.round(amountSOL * 1e9);
 
     const transaction = new Transaction().add(
       SystemProgram.transfer({
@@ -30,22 +36,67 @@ export async function sendPaymentTransaction(
       })
     );
 
-    const { blockhash } = await connection.getLatestBlockhash();
+    const { blockhash } = await connection.getLatestBlockhash('confirmed');
     transaction.recentBlockhash = blockhash;
     transaction.feePayer = fromPublicKey;
 
     const signedTransaction = await wallet.signTransaction(transaction);
 
-    const signature = await connection.sendRawTransaction(signedTransaction.serialize());
+    const signature = await connection.sendRawTransaction(signedTransaction.serialize(), {
+      skipPreflight: false,
+      preflightCommitment: 'confirmed',
+    });
 
-    await connection.confirmTransaction(signature);
+    // Подтверждение через WebSocket с fallback на polling
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Confirmation waiting timeout'));
+        }, 60000);
+        connection.onSignature(signature, (result) => {
+          clearTimeout(timeoutId);
+          if (result.err) {
+            reject(new Error('Transaction failed'));
+          } else {
+            resolve();
+          }
+        }, 'confirmed');
+      });
+    } catch (wsError) {
+      // fallback - polling
+      let confirmed = false;
+      const startTime = Date.now();
+      while (!confirmed && (Date.now() - startTime < 60000)) {
+        try {
+          const status = await connection.getSignatureStatus(signature, { searchTransactionHistory: true });
+          if (status.value && !status.value.err) {
+            if (
+              status.value.confirmationStatus === 'confirmed' ||
+              status.value.confirmationStatus === 'finalized'
+            ) {
+              confirmed = true;
+            } else {
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        } catch (pollError) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+      if (!confirmed) {
+        throw new Error('Transaction confirmation timeout');
+      }
+    }
 
     return signature;
-  } catch {
+  } catch (error) {
+    console.error('Error in sendPaymentTransaction:', error);
     return '';
-
   }
 }
+
 
 export async function checkTransactionStatus(
   connection: Connection,

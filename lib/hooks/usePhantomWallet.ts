@@ -7,6 +7,7 @@ import { useError } from '@/lib/hooks/useError';
 interface PhantomWindow extends Window {
   phantom?: {
     solana?: {
+      publicKey: any;
       isPhantom: boolean;
       connect: () => Promise<{ publicKey: string; signature: string; timestamp: number } | void>;
       disconnect: () => Promise<void>;

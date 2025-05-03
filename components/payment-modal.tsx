@@ -1,10 +1,9 @@
-"use client";
 import { useEffect, useState, useCallback } from "react";
-import { Connection } from '@solana/web3.js';
+import { Connection, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePhantomWallet } from "@/lib/hooks/usePhantomWallet";
-import { sendPaymentTransaction, checkTransactionStatus, getTransactionDetails } from "@/lib/solana-pay";
+import { sendPaymentTransaction, getTransactionDetails } from "@/lib/solana-pay";
 import {
   Dialog,
   DialogDescription,
@@ -12,38 +11,21 @@ import {
   DialogTitle,
   DialogPortal,
   DialogOverlay,
+  DialogContent,
 } from "@/components/ui/dialog";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 
-function DialogContent({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content>) {
-  return (
-    <DialogPortal>
-      <DialogOverlay />
-      <DialogPrimitive.Content
-        data-slot="dialog-content"
-        className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg",
-          className
-        )}
-        {...props}
-      >
-        {children}
-      </DialogPrimitive.Content>
-    </DialogPortal>
-  );
-}
+const HELIUS_RPC = "https://mechelle-owgpb7-fast-mainnet.helius-rpc.com";
+const FEE_RESERVE_SOL = 0.0001;
+const STORAGE_KEYS = { WALLET: "whales_trace_wallet" };
 
-interface PaymentModalProps {
-  open: boolean;
-  onOpenChangeAction: (open: boolean) => void;
-  walletAddress: string;
-  onCheckPaymentAction: () => Promise<void>;
+function getPhantomProvider() {
+  if (typeof window !== "undefined" && (window as any).solana?.isPhantom) {
+    return (window as any).solana;
+  }
+  return null;
 }
 
 export function PaymentModal({
@@ -51,95 +33,106 @@ export function PaymentModal({
   onOpenChangeAction,
   walletAddress,
   onCheckPaymentAction,
-}: PaymentModalProps) {
+}: {
+  open: boolean;
+  onOpenChangeAction: (open: boolean) => void;
+  walletAddress: string;
+  onCheckPaymentAction: () => Promise<void>;
+}) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [status, setStatus] = useState<'idle' | 'sending' | 'checking' | 'confirming'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [transactionDetails, setTransactionDetails] = useState<any>(null);
   const [isCopied, setIsCopied] = useState(false);
-  const { provider: wallet, connect, disconnect } = usePhantomWallet();
+  const { publicKey, connect, disconnect } = usePhantomWallet();
   const [amountSOL, setAmountSOL] = useState<number>(0);
+  const [hasEnough, setHasEnough] = useState<boolean | null>(null);
 
-  const openInSolscan = useCallback((signature: string) => {
-    const url = `https://solscan.io/tx/${signature}`;
-    window.open(url, '_blank');
-  }, []);
+  const getCurrentWalletAddress = () =>
+    publicKey?.toString() || localStorage.getItem(STORAGE_KEYS.WALLET) || "";
 
-  const handleReconnect = async () => {
-    try {
-      await disconnect(); 
-      await connect(); 
-    } catch (error) {
-      console.error('Error reconnecting:', error);
-      setError('Failed to reconnect. Please try again.');
-    }
-  };
+  // Проверка баланса и rent-exempt
+  useEffect(() => {
+    const checkEnough = async () => {
+      const addr = getCurrentWalletAddress();
+      if (!addr) {
+        setHasEnough(null);
+        return;
+      }
+      try {
+        const connection = new Connection(HELIUS_RPC);
+        const balanceLamports = await connection.getBalance(new PublicKey(addr));
+        const balanceSOL = balanceLamports / LAMPORTS_PER_SOL;
+        const rentLamports = await connection.getMinimumBalanceForRentExemption(0);
+        const rent = rentLamports / LAMPORTS_PER_SOL;
+        const maxSendable = Math.max(0, balanceSOL - FEE_RESERVE_SOL - rent);
+        setHasEnough(amountSOL <= maxSendable);
+      } catch {
+        setHasEnough(null);
+      }
+    };
+    if (open) checkEnough();
+  }, [publicKey, open, amountSOL]);
 
   const handlePayment = async () => {
     try {
-      if (!wallet) {
-        await connect();
+      // Получаем provider напрямую из window
+      const provider = getPhantomProvider();
+      const addr = getCurrentWalletAddress();
+
+      // Проверяем, что provider и publicKey есть (кошелек реально подключен)
+      if (!provider || !provider.publicKey || !addr) {
+        setError("Please connect your Phantom wallet first.");
         return;
       }
-
+      if (hasEnough === false) {
+        setError("Refill your wallet");
+        return;
+      }
       setIsProcessing(true);
       setStatus('sending');
       setError(null);
       setTransactionDetails(null);
 
-      const connection = new Connection('https://api.mainnet-beta.solana.com', {
-        wsEndpoint: 'wss://api.mainnet-beta.solana.com'
-      });
+      const connection = new Connection(HELIUS_RPC);
 
       const signature = await sendPaymentTransaction(
         connection,
-        wallet,
+        provider,
         walletAddress,
         amountSOL
       );
 
-      console.log('Transaction signature:', signature);
       if (!signature) {
         throw new Error('Failed to send transaction');
       }
 
       setStatus('checking');
 
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const timeoutId = setTimeout(() => {
-            reject(new Error('Confirmation waiting timeout'));
-          }, 60000);
-          connection.onSignature(signature, (result, context) => {
-            clearTimeout(timeoutId);
-            if (result.err) {
-              reject(new Error('Transaction failed'));
-            } else {
-              resolve();
-            }
-          }, 'confirmed');
-        });
-      } catch (wsError) {
-        console.error('Error WebSocket:', wsError);
-        setError('WebSocket connection error. Switch to polling.');
-        let confirmed = false;
-        const startTime = Date.now();
-        while (!confirmed && (Date.now() - startTime < 60000)) {
-          try {
-            const status = await connection.getSignatureStatus(signature);
-            if (status.value && !status.value.err) {
+      // Polling подтверждение
+      let confirmed = false;
+      const startTime = Date.now();
+      while (!confirmed && (Date.now() - startTime < 60000)) {
+        try {
+          const status = await connection.getSignatureStatus(signature, { searchTransactionHistory: true });
+          if (status.value && !status.value.err) {
+            if (
+              status.value.confirmationStatus === 'confirmed' ||
+              status.value.confirmationStatus === 'finalized'
+            ) {
               confirmed = true;
             } else {
               await new Promise(resolve => setTimeout(resolve, 2000));
             }
-          } catch (pollError) {
-            console.error('Error polling:', pollError);
+          } else {
             await new Promise(resolve => setTimeout(resolve, 2000));
           }
+        } catch {
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
-        if (!confirmed) {
-          throw new Error('Тайм-аут подтверждения транзакции');
-        }
+      }
+      if (!confirmed) {
+        throw new Error('Тайм-аут подтверждения транзакции');
       }
 
       setStatus('confirming');
@@ -147,14 +140,10 @@ export function PaymentModal({
       try {
         const details = await getTransactionDetails(connection, signature);
         setTransactionDetails(details);
-      } catch (error) {
-        console.error('Ошибка получения деталей транзакции:', error);
-      }
+      } catch {}
 
       let retryCount = 0;
       const maxRetries = 60;
-      let isSubscriptionActive = false;
-
       const checkPaymentInterval = setInterval(async () => {
         try {
           await onCheckPaymentAction();
@@ -170,7 +159,6 @@ export function PaymentModal({
             const data = await response.json();
 
             if (data.hasSubscription === true) {
-              isSubscriptionActive = true;
               clearInterval(checkPaymentInterval);
               setIsProcessing(false);
               onOpenChangeAction(false);
@@ -178,16 +166,13 @@ export function PaymentModal({
             }
           }
           retryCount++;
-
           if (retryCount >= maxRetries) {
             clearInterval(checkPaymentInterval);
             setIsProcessing(false);
             setError('Subscription confirmation timeout. Contact support.');
           }
-        } catch (error) {
-          console.error('Error checked signature:', error);
+        } catch {
           retryCount++;
-
           if (retryCount >= maxRetries) {
             clearInterval(checkPaymentInterval);
             setIsProcessing(false);
@@ -197,8 +182,11 @@ export function PaymentModal({
       }, 5000);
 
     } catch (error) {
-      console.error('Ошибка в handlePayment:', error);
-      setError(`Error sending the transaction. Check the wallet address and amount.`);
+      setError(
+        error instanceof Error
+          ? error.message
+          : `Error sending the transaction. Check the wallet address and amount.`
+      );
       setIsProcessing(false);
     }
   };
@@ -208,6 +196,20 @@ export function PaymentModal({
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
   };
+  
+  const handleReconnect = async () => {
+    try {
+      await disconnect();
+      await connect();
+      // Ждем немного, чтобы Phantom успел обновить localStorage и стейт
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } catch (error) {
+      setError('Failed to reconnect. Please try again.');
+    }
+  };
+ 
 
   useEffect(() => {
     const fetchPrice = async () => {
@@ -234,8 +236,8 @@ export function PaymentModal({
         }
 
         setAmountSOL(amount);
-      } catch (error) {
-        console.error('Price retrieval error:', error);
+      } catch {
+        // Не блокируем UI при ошибке цены
       }
     };
 
@@ -245,27 +247,31 @@ export function PaymentModal({
   }, [open]);
 
   return (
-    <Dialog open={open}>
+    <Dialog open={open} >
       <DialogContent
+      
+
         className="sm:max-w-md"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
-        
         <DialogHeader>
-          <div className="flex items-center justify-between">
-          <DialogTitle className="text-lg font-semibold">Topup wallet</DialogTitle>
-            <DialogTitle
-              onClick={handleReconnect}
-              className="text-sm text-purple-400 hover:text-purple-300 cursor-pointer"
-            >
-              Reconnect →
-            </DialogTitle>
-          </div>
           
-            <DialogDescription className="text-sm text-gray-400">
-              Send {amountSOL} SOL to activate your subscription
-            </DialogDescription>
+
+        <div className="flex items-center justify-between">
+    <DialogTitle className="text-lg font-semibold">Topup wallet</DialogTitle>
+    <DialogTitle
+      onClick={handleReconnect}
+      className="text-sm text-purple-400 hover:text-purple-300 cursor-pointer"
+      style={{ userSelect: 'none' }}
+    >
+      Reconnect →
+    </DialogTitle>
+  </div>
+
+          <DialogDescription className="text-sm text-gray-400">
+            Send {amountSOL} SOL to activate your subscription
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col items-center justify-center space-y-4 py-2">
@@ -299,7 +305,7 @@ export function PaymentModal({
           <div className="flex flex-col w-full gap-4 mt-2">
             <Button
               onClick={handlePayment}
-              disabled={isProcessing}
+              disabled={isProcessing || hasEnough === false}
               className={cn(
                 "relative w-full py-2 text-sm font-medium transition-all duration-200",
                 isProcessing
@@ -323,7 +329,14 @@ export function PaymentModal({
               )}
             </Button>
 
-            {error && (
+            {hasEnough === false && (
+              <div className="flex items-center justify-center gap-2 text-sm text-red-400 bg-red-900/20 p-3 rounded-lg border border-red-700/30">
+                <AlertCircle className="h-4 w-4" />
+                <span>Refill your wallet</span>
+              </div>
+            )}
+
+            {error && hasEnough !== false && (
               <div className="flex items-center justify-center gap-2 text-sm text-red-400 bg-red-900/20 p-3 rounded-lg border border-red-700/30">
                 <AlertCircle className="h-4 w-4" />
                 <span>{error}</span>
@@ -346,7 +359,7 @@ export function PaymentModal({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => openInSolscan(transactionDetails.signature)}
+                  onClick={() => window.open(`https://solscan.io/tx/${transactionDetails.signature}`, "_blank")}
                   className="shrink-0 h-6 px-2 text-[11px] font-medium text-purple-400 hover:text-purple-300 hover:bg-purple-900/40"
                 >
                   View on Solscan
