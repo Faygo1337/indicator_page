@@ -1,10 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { generateUpdateId } from '../utils';
 
-/**
- * Хук для принудительного обновления компонента
- * @returns [updateId, forceUpdate] - текущий идентификатор обновления и функция для принудительного обновления
- */
 export function useForceUpdate(): [string, () => void] {
   const [updateId, setUpdateId] = useState(generateUpdateId());
 
@@ -16,12 +12,6 @@ export function useForceUpdate(): [string, () => void] {
   return [updateId, forceUpdate];
 }
 
-/**
- * Создает дебаунсированную функцию, которая выполняется не чаще чем раз в delay миллисекунд
- * @param fn - функция для дебаунсинга
- * @param delay - задержка в миллисекундах
- * @returns дебаунсированная функция
- */
 export function useDebounce<T extends (...args: void[]) => void>(
   fn: T,
   delay = 300

@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import type { CryptoCard as CryptoCardType } from "@/lib/api/types";
 import { useTrackedData } from "@/lib/hooks/useForceUpdate";
 
-import { useWebSocket } from "@/lib/context/WebSocketContext";
+// import { useWebSocket } from "@/lib/context/WebSocketContext";
 import {
   formatNumber,
   extractNumericValue,
@@ -91,13 +91,13 @@ export function CryptoCard({
   const [trackedData, forceUpdateImmediate] =
     useTrackedData<ExtendedCryptoCard>(data || null);
 
-  const wsContextData = useWebSocket();
-  const isConnected = wsContextData.status === "connected";
+  // const wsContextData = useWebSocket();
+  // const isConnected = wsContextData.status === "connected";
 
  
-  const wsCardData = wsContextData.cards.find((card) => card.id === data?.id);
+  // const wsCardData = wsContextData.cards.find((card) => card.id === data?.id);
   
-  const displayData = wsCardData ?? data;
+  const displayData = data;
 
   const twitterRaw = displayData?.socialLinks.twitter ?? '';
   const twitterHref = twitterRaw
@@ -118,11 +118,11 @@ export function CryptoCard({
 
   useEffect(() => {
     if (
-      wsCardData?.marketCap &&
-      wsCardData.marketCap !== trackedData?.marketCap
+      data?.marketCap &&
+      data.marketCap !== trackedData?.marketCap
     ) {
       const prevValue = extractNumericValue(trackedData?.marketCap || "0");
-      const currValue = extractNumericValue(wsCardData.marketCap);
+      const currValue = extractNumericValue(data.marketCap);
 
       if (currValue > prevValue) {
         setPriceDirection("increase");
@@ -138,7 +138,7 @@ export function CryptoCard({
 
       forceUpdateImmediate();
     }
-  }, [wsCardData?.marketCap, trackedData?.marketCap, forceUpdateImmediate]);
+  }, [data?.marketCap, trackedData?.marketCap, forceUpdateImmediate]);
 
   useEffect(() => {
     if (
@@ -162,7 +162,7 @@ export function CryptoCard({
   }, [data?._updateId, data?.marketCap]);
 
   useEffect(() => {
-    if (!wsCardData || !trackedData) return;
+    if (!data || !trackedData) return;
 
     const fieldsToAnimate: Record<string, boolean> = {};
     let hasChanges = false;
@@ -178,24 +178,24 @@ export function CryptoCard({
       }
     };
 
-    checkField("marketCap", trackedData.marketCap, wsCardData.marketCap);
-    checkField("priceChange", trackedData.priceChange, wsCardData.priceChange);
-    checkField("top10", trackedData.top10, wsCardData.top10);
+    checkField("marketCap", trackedData.marketCap, data.marketCap);
+    checkField("priceChange", trackedData.priceChange, data.priceChange);
+    checkField("top10", trackedData.top10, data.top10);
     checkField(
       "devWalletHold",
       trackedData.devWalletHold,
-      wsCardData.devWalletHold
+      data.devWalletHold
     );
     checkField(
       "first70BuyersHold",
       trackedData.first70BuyersHold,
-      wsCardData.first70BuyersHold
+      data.first70BuyersHold
     );
-    checkField("insiders", trackedData.insiders, wsCardData.insiders);
-    checkField("tokenAge", trackedData.tokenAge, wsCardData.tokenAge);
+    checkField("insiders", trackedData.insiders, data.insiders);
+    checkField("tokenAge", trackedData.tokenAge, data.tokenAge);
 
     if (
-      JSON.stringify(trackedData.whales) !== JSON.stringify(wsCardData.whales)
+      JSON.stringify(trackedData.whales) !== JSON.stringify(data.whales)
     ) {
       fieldsToAnimate.whales = true;
       hasChanges = true;
@@ -210,7 +210,7 @@ export function CryptoCard({
         setIsUpdating(false);
       }, 1500);
     }
-  }, [wsCardData, trackedData]);
+  }, [data, trackedData]);
 
 
 
@@ -542,14 +542,14 @@ export function CryptoCard({
                   </span>
 
 
-                  {isConnected &&  (
+                  {/* {isConnecting &&  (
                     
                     <motion.span
                     className="h-2 w-2 rounded-full bg-green-500 mr-1"
                     animate={{ opacity: [1, 0.2, 1] }}
                     transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
                   />
-                  )}
+                  )} */}
                 </div>
 
                 <h3 className="text-xs text-muted-foreground">

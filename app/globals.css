@@ -79,12 +79,10 @@
   animation: gradientMove 2s ease infinite;
 }
 
-/* Добавляем анимацию перехода цвета для изменений цены */
 .price-change-badge {
   transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease;
 }
 
-/* Улучшенная анимация градиента для подсветки изменений */
 @keyframes pulseGradient {
   0% {
     background-position: 0% 50%;
@@ -102,14 +100,12 @@
   }
 }
 
-/* Анимация для положительных изменений */
 .animate-positive {
   background: linear-gradient(90deg, rgba(74, 222, 128, 0.05), rgba(74, 222, 128, 0.2), rgba(74, 222, 128, 0.05));
   background-size: 200% 100%;
   animation: pulseGradient 2s ease infinite;
 }
 
-/* Анимация для отрицательных изменений */
 .animate-negative {
   background: linear-gradient(90deg, rgba(248, 113, 113, 0.05), rgba(248, 113, 113, 0.2), rgba(248, 113, 113, 0.05));
   background-size: 200% 100%;
@@ -165,19 +161,16 @@
   transition: color 0.3s ease;
 }
 
-/* Анимация увеличения значения */
 .value-increase {
   color: #4ade80;
   animation: valueUpdate 0.7s ease;
 }
 
-/* Анимация уменьшения значения */
 .value-decrease {
   color: #f87171;
   animation: valueUpdate 0.7s ease;
 }
 
-/* Анимация подсветки всей карточки */
 @keyframes cardUpdate {
   0% {
     box-shadow: 0 0 0 rgba(74, 222, 128, 0);
@@ -231,7 +224,6 @@
   animation: digitTicker 0.5s ease forwards;
 }
 
-/* Пульсирующий текст для активного обновления */
 @keyframes textPulse {
   0% {
     opacity: 1;
@@ -250,7 +242,6 @@
   animation: textPulse 1.5s ease infinite;
 }
 
-/* Анимация для реального изменения рыночной капитализации */
 .market-cap-realtime {
   transition: color 0.3s ease;
   position: relative;
@@ -271,7 +262,6 @@
   border-radius: 0.25rem;
 }
 
-/* Новая анимация пульсации для Market Cap */
 @keyframes marketCapPulse {
   0% {
     transform: scale(1);
@@ -289,7 +279,6 @@
   }
 }
 
-/* Анимации для увеличения и уменьшения Market Cap */
 .market-cap-increase {
   color: #4ade80;
   animation: marketCapPulse 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -302,7 +291,6 @@
   text-shadow: 0 0 8px rgba(248, 113, 113, 0.5);
 }
 
-/* Подсветка блока Market Cap при обновлении */
 .market-cap-highlight {
   border-color: rgba(74, 222, 128, 0.3) !important;
   background: linear-gradient(135deg,
@@ -313,12 +301,9 @@
   animation: gradientMove 2s ease infinite;
 }
 
-/* Стили для выделения текста */
 ::selection {
   background-color: rgba(147, 51, 234, 0.3);
-  /* bg-purple-600 с прозрачностью */
   color: rgba(216, 180, 254, 1);
-  /* text-purple-300 */
 }
 
 ::-moz-selection {

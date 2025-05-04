@@ -34,25 +34,6 @@ export function formatPercent(value: number, decimals = 2): string {
   return `${value.toFixed(decimals)}%`;
 }
 
-export function formatCurrency(value: number, decimals = 5): string {
-  return `$${value.toFixed(decimals)}`;
-}
-
-export function extractNumber(value: string, defaultValue = 0): number {
-  if (!value) return defaultValue;
-
-  const matches = value.match(/[-+]?([0-9]*\.[0-9]+|[0-9]+)/);
-  if (matches && matches[0]) {
-    return parseFloat(matches[0]);
-  }
-
-  return defaultValue;
-}
-
-export function isApproximatelyEqual(value1: number, value2: number, epsilon = 0.00001): boolean {
-  return Math.abs(value1 - value2) < epsilon;
-}
-
 export function generateUpdateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
@@ -169,8 +150,3 @@ export function parseTokenAge(ageString: string): number {
     return 0;
   }
 }
-
-export const getJwtFromStorage = (): string | null => {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('whales_trace_token');
-};

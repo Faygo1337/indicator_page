@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { MessageCircleMore } from "lucide-react";
 import "./globals.css";
-import { WebSocketProvider } from "@/lib/context/WebSocketContext";
 import { ToastProvider } from "@/components/toast";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -27,7 +26,6 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} bg-background text-foreground`} suppressHydrationWarning>
         <ToastProvider>
-          <WebSocketProvider>
             {children}
             <a
               href="https://t.me/web3_trace"
@@ -38,7 +36,6 @@ export default function RootLayout({
             >
               <MessageCircleMore size={24} />
             </a>
-          </WebSocketProvider>
         </ToastProvider>
       </body>
     </html>

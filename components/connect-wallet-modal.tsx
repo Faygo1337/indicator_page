@@ -14,7 +14,6 @@ export const ConnectWalletModal: React.FC<ConnectWalletModalProps> = ({ open, on
     <div className="fixed inset-0 flex items-center justify-center z-50">
 
       <div className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" />
-      {/* модальное окно */}
       <div className="relative bg-background p-6 rounded-lg shadow-lg w-full max-w-lg">
         <h3 className="mb-4 text-lg font-semibold text-white">Connect a wallet on Solana to continue</h3>
         <button

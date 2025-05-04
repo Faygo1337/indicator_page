@@ -9,7 +9,7 @@ import { usePhantomWallet } from "@/lib/hooks/usePhantomWallet";
 import { useReferral } from "@/lib/hooks/useReferral";
 import type { JWTPayload } from "@/lib/api/types";
 import { ConnectWalletModal } from '@/components/connect-wallet-modal';
-import { verifyWallet } from "@/lib/api/api-general";
+import { verifyWallet } from "@/lib/api/verify";
 import { ConnectWebSocket } from "@/components/websocket";
 import { useError } from '@/lib/hooks/useError';
 
