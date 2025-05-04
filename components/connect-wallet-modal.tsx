@@ -21,7 +21,7 @@ export const ConnectWalletModal: React.FC<ConnectWalletModalProps> = ({ open, on
           className="w-full flex items-center justify-center px-4 py-2 bg-purple-600  text-white rounded-md"
         >
           <div className="flex items-center gap-2">
-            <Image src={PhantomIcon} alt="Phantom" width={30} height={30} />
+            <Image src={PhantomIcon} alt="Phantom image" width={30} height={30} priority />
             Phantom
           </div>
         </button>

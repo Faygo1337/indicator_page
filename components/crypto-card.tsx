@@ -541,15 +541,11 @@ export function CryptoCard({
                     {displayData?.symbol}
                   </span>
 
-
-                  {/* {isConnecting &&  (
-                    
-                    <motion.span
-                    className="h-2 w-2 rounded-full bg-green-500 mr-1"
-                    animate={{ opacity: [1, 0.2, 1] }}
-                    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-                  />
-                  )} */}
+                  <motion.span
+                     className="h-2 w-2 rounded-full bg-green-500 mr-1"
+                     animate={{ opacity: [1, 0.2, 1] }}
+                     transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                   />
                 </div>
 
                 <h3 className="text-xs text-muted-foreground">

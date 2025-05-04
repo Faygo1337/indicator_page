@@ -51,7 +51,6 @@ export function PaymentModal({
   const getCurrentWalletAddress = () =>
     publicKey?.toString() || localStorage.getItem(STORAGE_KEYS.WALLET) || "";
 
-  // Проверка баланса и rent-exempt
   useEffect(() => {
     const checkEnough = async () => {
       const addr = getCurrentWalletAddress();
@@ -76,11 +75,9 @@ export function PaymentModal({
 
   const handlePayment = async () => {
     try {
-      // Получаем provider напрямую из window
       const provider = getPhantomProvider();
       const addr = getCurrentWalletAddress();
 
-      // Проверяем, что provider и publicKey есть (кошелек реально подключен)
       if (!provider || !provider.publicKey || !addr) {
         setError("Please connect your Phantom wallet first.");
         return;
@@ -109,7 +106,6 @@ export function PaymentModal({
 
       setStatus('checking');
 
-      // Polling подтверждение
       let confirmed = false;
       const startTime = Date.now();
       while (!confirmed && (Date.now() - startTime < 60000)) {
@@ -201,7 +197,6 @@ export function PaymentModal({
     try {
       await disconnect();
       await connect();
-      // Ждем немного, чтобы Phantom успел обновить localStorage и стейт
       setTimeout(() => {
         window.location.reload();
       }, 500);
@@ -237,7 +232,6 @@ export function PaymentModal({
 
         setAmountSOL(amount);
       } catch {
-        // Не блокируем UI при ошибке цены
       }
     };
 
@@ -249,29 +243,25 @@ export function PaymentModal({
   return (
     <Dialog open={open} >
       <DialogContent
-      
-
         className="sm:max-w-md"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <DialogHeader>
-          
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-lg font-semibold">Topup wallet</DialogTitle>
+            <DialogTitle
+              onClick={handleReconnect}
+              className="text-sm text-purple-400 hover:text-purple-300 cursor-pointer"
+              style={{ userSelect: 'none' }}
+            >
+              Reconnect →
+            </DialogTitle>
+          </div>
 
-        <div className="flex items-center justify-between">
-    <DialogTitle className="text-lg font-semibold">Topup wallet</DialogTitle>
-    <DialogTitle
-      onClick={handleReconnect}
-      className="text-sm text-purple-400 hover:text-purple-300 cursor-pointer"
-      style={{ userSelect: 'none' }}
-    >
-      Reconnect →
-    </DialogTitle>
-  </div>
-
-          <DialogDescription className="text-sm text-gray-400">
-            Send {amountSOL} SOL to activate your subscription
-          </DialogDescription>
+            <DialogDescription className="text-sm text-gray-400">
+              Send {amountSOL} SOL to activate your subscription
+            </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col items-center justify-center space-y-4 py-2">
